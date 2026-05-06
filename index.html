@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Client Portal — View Your Payments</title>
+  <meta name="description" content="Secure client portal to view your work items and payment status." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="portal.css" />
+</head>
+<body>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- ═══════════════ LOGIN SCREEN ═══════════════ -->
+  <div id="loginScreen" class="screen login-screen">
+    <div class="login-box">
+      <div class="login-brand">
+        <span class="brand-icon">⚡</span>
+        <div>
+          <span class="brand-name">GT Edits</span>
+        </div>
+      </div>
+
+      <h1 class="login-title">Welcome Back</h1>
+      <p class="login-desc">Sign in with the credentials shared by your service provider.</p>
+
+      <form id="loginForm" autocomplete="off" novalidate>
+        <div class="input-group">
+          <label for="inputUser">Username</label>
+          <div class="input-wrap">
+            <span class="input-icon">👤</span>
+            <input
+              type="text"
+              id="inputUser"
+              placeholder="your username"
+              autocomplete="off"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label for="inputPass">Password</label>
+          <div class="input-wrap">
+            <span class="input-icon">🔒</span>
+            <input
+              type="password"
+              id="inputPass"
+              placeholder="••••••••"
+              autocomplete="off"
+              required
+            />
+          </div>
+        </div>
+
+        <p id="loginError" class="login-error" style="display:none"></p>
+
+        <button type="submit" class="btn-login">Sign In →</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ═══════════════ PORTAL SCREEN ═══════════════ -->
+  <div id="portalScreen" class="screen portal-screen" style="display:none">
+
+    <!-- Header -->
+    <header class="portal-header">
+      <div class="header-inner">
+        <div class="logo">
+          <span class="logo-icon">⚡</span>
+          <div>
+            <span class="logo-text">ClientTrack</span>
+            <span class="logo-sub">Client Portal</span>
+          </div>
+        </div>
+        <div class="header-right">
+          <span class="user-chip">🔐 <span id="portalName">—</span></span>
+          <button id="logoutBtn" class="btn-logout">Sign Out</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Greeting -->
+    <div class="portal-greeting-wrap">
+      <p id="greeting" class="portal-greeting"></p>
+      <p class="portal-greeting-sub">Here's a summary of your work items and payment status.</p>
+    </div>
+
+    <!-- Summary Cards -->
+    <section class="summary-row">
+      <div class="sum-card sum-total">
+        <div class="sum-icon">📦</div>
+        <div>
+          <p class="sum-label">Total Work Value</p>
+          <p class="sum-value" id="summaryTotal">₹0</p>
+        </div>
+      </div>
+      <div class="sum-card sum-paid">
+        <div class="sum-icon">✅</div>
+        <div>
+          <p class="sum-label">Amount Paid</p>
+          <p class="sum-value" id="summaryPaid">₹0</p>
+        </div>
+      </div>
+      <div class="sum-card sum-pending">
+        <div class="sum-icon">⏳</div>
+        <div>
+          <p class="sum-label">Amount Due</p>
+          <p class="sum-value" id="summaryPending">₹0</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Work Items Table -->
+    <section class="work-section">
+      <h2 class="section-title">📋 Your Work Items</h2>
+
+      <div class="table-wrap">
+        <table class="work-table" id="workTable" style="display:none">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Description</th>
+              <th>Qty</th>
+              <th>Unit Price</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th>Amount Due</th>
+            </tr>
+          </thead>
+          <tbody id="workBody"></tbody>
+        </table>
+
+        <div id="workEmpty" class="work-empty" style="display:none">
+          <div class="empty-icon">📭</div>
+          <p>No work items found for your account.</p>
+          <span>Please contact your service provider if you think this is an error.</span>
+        </div>
+      </div>
+    </section>
+
+    <footer class="portal-footer">
+      <p> By <a href="https://instagram.com/gt._.edits">@gt._.edits</a></p>
+    </footer>
+
+  </div>
+
+  <script type="module" src="portal.js"></script>
+</body>
+</html>
