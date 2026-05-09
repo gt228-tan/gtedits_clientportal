@@ -20,7 +20,8 @@
       <div class="login-brand">
         <span class="brand-icon">⚡</span>
         <div>
-          <span class="brand-name">GT Edits</span>
+          <span class="brand-name">ClientTrack</span>
+          <span class="brand-sub">Client Portal</span>
         </div>
       </div>
 
@@ -32,41 +33,25 @@
           <label for="inputUser">Username</label>
           <div class="input-wrap">
             <span class="input-icon">👤</span>
-            <input
-              type="text"
-              id="inputUser"
-              placeholder="your username"
-              autocomplete="off"
-              required
-            />
+            <input type="text" id="inputUser" placeholder="your username" autocomplete="off" required />
           </div>
         </div>
-
         <div class="input-group">
           <label for="inputPass">Password</label>
           <div class="input-wrap">
             <span class="input-icon">🔒</span>
-            <input
-              type="password"
-              id="inputPass"
-              placeholder="••••••••"
-              autocomplete="off"
-              required
-            />
+            <input type="password" id="inputPass" placeholder="••••••••" autocomplete="off" required />
           </div>
         </div>
-
         <p id="loginError" class="login-error" style="display:none"></p>
-
         <button type="submit" class="btn-login">Sign In →</button>
       </form>
     </div>
   </div>
 
-  <!-- ═══════════════ PORTAL SCREEN ═══════════════ -->
+  <!-- ═══════════════ CLIENT PORTAL SCREEN ═══════════════ -->
   <div id="portalScreen" class="screen portal-screen" style="display:none">
 
-    <!-- Header -->
     <header class="portal-header">
       <div class="header-inner">
         <div class="logo">
@@ -78,18 +63,16 @@
         </div>
         <div class="header-right">
           <span class="user-chip">🔐 <span id="portalName">—</span></span>
-          <button id="logoutBtn" class="btn-logout">Sign Out</button>
+          <button class="btn-logout logout-btn">Sign Out</button>
         </div>
       </div>
     </header>
 
-    <!-- Greeting -->
     <div class="portal-greeting-wrap">
       <p id="greeting" class="portal-greeting"></p>
       <p class="portal-greeting-sub">Here's a summary of your work items and payment status.</p>
     </div>
 
-    <!-- Summary Cards -->
     <section class="summary-row">
       <div class="sum-card sum-total">
         <div class="sum-icon">📦</div>
@@ -114,26 +97,18 @@
       </div>
     </section>
 
-    <!-- Work Items Table -->
     <section class="work-section">
       <h2 class="section-title">📋 Your Work Items</h2>
-
       <div class="table-wrap">
         <table class="work-table" id="workTable" style="display:none">
           <thead>
             <tr>
-              <th>#</th>
-              <th>Description</th>
-              <th>Qty</th>
-              <th>Unit Price</th>
-              <th>Total</th>
-              <th>Status</th>
-              <th>Amount Due</th>
+              <th>#</th><th>Description</th><th>Qty</th>
+              <th>Unit Price</th><th>Total</th><th>Status</th><th>Amount Due</th>
             </tr>
           </thead>
           <tbody id="workBody"></tbody>
         </table>
-
         <div id="workEmpty" class="work-empty" style="display:none">
           <div class="empty-icon">📭</div>
           <p>No work items found for your account.</p>
@@ -143,9 +118,189 @@
     </section>
 
     <footer class="portal-footer">
-      <p> By <a href="https://instagram.com/gt._.edits">@gt._.edits</a></p>
+      <p>By <a href="https://instagram.com/gt._.edits">@gt._.edits</a></p>
     </footer>
+  </div>
 
+  <!-- ═══════════════════════════════════════════════════
+       ADMIN SCREEN
+  ═══════════════════════════════════════════════════════ -->
+  <div id="adminScreen" style="display:none">
+
+    <!-- Admin Header -->
+    <header class="portal-header">
+      <div class="header-inner">
+        <div class="logo">
+          <span class="logo-icon">⚡</span>
+          <div>
+            <span class="logo-text">ClientTrack</span>
+            <span class="logo-sub admin-badge">Admin Panel</span>
+          </div>
+        </div>
+        <div class="header-right">
+          <span class="user-chip admin-chip">🛡️ Admin</span>
+          <button class="btn-logout logout-btn">Sign Out</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Admin Summary -->
+    <section class="summary-row" style="margin-top:1.5rem">
+      <div class="sum-card sum-paid">
+        <div class="sum-icon">💰</div>
+        <div>
+          <p class="sum-label">Total Earned</p>
+          <p class="sum-value" id="adminTotalEarned">₹0</p>
+        </div>
+      </div>
+      <div class="sum-card sum-pending">
+        <div class="sum-icon">⏳</div>
+        <div>
+          <p class="sum-label">Total Pending</p>
+          <p class="sum-value" id="adminTotalPending">₹0</p>
+        </div>
+      </div>
+      <div class="sum-card sum-total">
+        <div class="sum-icon">👥</div>
+        <div>
+          <p class="sum-label">Total Clients</p>
+          <p class="sum-value" id="adminTotalClients">0</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Add Client Form -->
+    <section class="admin-add-section">
+      <h2 class="section-title">➕ Add New Client</h2>
+      <form id="adminClientForm" class="admin-add-form" autocomplete="off" novalidate>
+        <div class="admin-form-row">
+          <input type="text" id="adminClientName" placeholder="Client name…" required />
+          <button type="submit" id="adminSubmitBtn" class="btn-add-client">Add Client</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Client List -->
+    <section class="work-section">
+      <h2 class="section-title">👥 All Clients</h2>
+      <div id="adminClientList" class="admin-client-list"></div>
+    </section>
+
+  </div><!-- /adminScreen -->
+
+  <!-- ═══════════════════════════════════════════════════
+       ADMIN — WORK MODAL
+  ═══════════════════════════════════════════════════════ -->
+  <div id="adminWorkModal" class="modal-overlay" style="display:none">
+    <div class="modal-box work-modal-box">
+
+      <div class="modal-header">
+        <h3 id="adminWorkModalTitle">Work Items</h3>
+        <button class="modal-close" id="adminCloseWork">✕</button>
+      </div>
+
+      <!-- Add / Edit Work Form -->
+      <div class="work-form-wrap">
+        <form id="adminWorkForm" autocomplete="off">
+          <div class="work-form-grid">
+            <div class="form-group fg-desc">
+              <label for="adminWorkDesc">Description</label>
+              <input type="text" id="adminWorkDesc" placeholder="e.g. Instagram Reels" required />
+            </div>
+            <div class="form-group fg-qty">
+              <label for="adminWorkQty">Qty</label>
+              <input type="number" id="adminWorkQty" value="1" min="1" required />
+            </div>
+            <div class="form-group fg-price">
+              <label for="adminWorkPrice">Price / unit (₹)</label>
+              <div class="input-prefix-wrap">
+                <span class="input-prefix">₹</span>
+                <input type="number" id="adminWorkPrice" placeholder="300" min="0" required />
+              </div>
+            </div>
+            <div class="form-group fg-date">
+              <label for="adminWorkDate">Date</label>
+              <input type="date" id="adminWorkDate" />
+            </div>
+          </div>
+          <div class="work-form-actions">
+            <button type="submit" class="btn-add-work" id="adminWorkSubmitBtn">＋ Add Item</button>
+            <button type="button" class="btn-cancel-work" id="adminCancelWorkEdit" style="display:none">✕ Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Work Table -->
+      <div class="work-table-wrap">
+        <table class="work-table" id="adminWorkTable">
+          <thead>
+            <tr>
+              <th>#</th><th>Description</th><th>Qty</th>
+              <th>Price</th><th>Total</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="adminWorkBody"></tbody>
+        </table>
+        <div id="adminWorkEmpty" class="work-empty">No items yet — add one above</div>
+      </div>
+
+      <!-- Subtotal -->
+      <div class="work-summary">
+        <div class="work-summary-row total-row">
+          <span>Subtotal</span>
+          <span id="adminWorkSubtotal">₹0</span>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" id="adminCloseWork2">Close</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       ADMIN — ADVANCE MODAL
+  ═══════════════════════════════════════════════════════ -->
+  <div id="adminAdvModal" class="adv-overlay" style="display:none">
+    <div class="adv-box">
+      <div class="adv-icon">💰</div>
+      <h4 class="adv-title">Advance Payment</h4>
+      <p class="adv-sub">How much has been paid in advance?</p>
+      <div class="adv-input-wrap">
+        <span class="adv-prefix">₹</span>
+        <input type="number" id="adminAdvAmount" placeholder="0" min="0" autocomplete="off" />
+      </div>
+      <div class="adv-work-info" id="adminAdvInfo"></div>
+      <div class="adv-actions">
+        <button id="adminAdvConfirmBtn" class="btn-adv-confirm">Save Advance</button>
+        <button id="adminAdvCancelBtn" class="btn-adv-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       ADMIN — CREDENTIAL MODAL
+  ═══════════════════════════════════════════════════════ -->
+  <div id="adminCredModal" class="adv-overlay" style="display:none">
+    <div class="adv-box cred-box">
+      <div class="adv-icon">🔐</div>
+      <h4 class="adv-title">Client Portal Access</h4>
+      <p class="adv-sub">Share these credentials with your client privately.</p>
+      <div class="cred-row">
+        <span class="cred-label">👤 Username</span>
+        <code id="adminCredUser" class="cred-val"></code>
+      </div>
+      <div class="cred-row">
+        <span class="cred-label">🔒 Password</span>
+        <code id="adminCredPass" class="cred-val"></code>
+      </div>
+      <p class="cred-rule-note">Auto-generated: <strong>first 2 letters of name + 123</strong></p>
+      <div class="adv-actions" style="gap:.75rem">
+        <button class="btn-adv-confirm" onclick="adminCopyCredText()">📋 Copy Both</button>
+        <button id="adminCredClose" class="btn-adv-cancel">Done</button>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="portal.js"></script>

@@ -1,12 +1,12 @@
 // ============================================================
-// firebase.js — Client Portal
-// Same Firebase project as the admin panel.
+// firebase.js — Client Portal  (same project as admin panel)
 // ============================================================
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, onValue, push, remove, update }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-// 🔴 Keep this in sync with your admin panel firebase.js
+// Keep in sync with ../firebase.js
 const firebaseConfig = {
   apiKey: "AIzaSyCry6lkG2eeu7GbiIb_JcjsYyy_v9kXd6s",
   authDomain: "client-tracker-b9331.firebaseapp.com",
@@ -18,6 +18,6 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+const db  = getDatabase(app);
 
-export { db, ref, onValue };
+export { db, ref, onValue, push, remove, update };
