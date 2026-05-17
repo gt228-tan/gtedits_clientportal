@@ -20,7 +20,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db  = getDatabase(app);
+const db = getDatabase(app);
 const auth = getAuth(app);
 
 // Sign in anonymously so auth != null satisfies Firebase DB rules.
@@ -29,4 +29,4 @@ signInAnonymously(auth).catch(err => {
   console.error("Anonymous sign-in failed:", err);
 });
 
-export { db, ref, onValue, push, remove, update };
+export { db, ref, onValue, push, remove, update, auth };

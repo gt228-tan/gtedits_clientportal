@@ -981,3 +981,216 @@ body {
     width: 180px;
   }
 }
+
+/* ══════════════════════════════════════════════════════════
+   INVOICE BUTTON (client portal header)
+══════════════════════════════════════════════════════════ */
+.btn-invoice {
+  background: linear-gradient(135deg, rgba(124,106,247,0.18), rgba(167,139,250,0.12));
+  border: 1px solid rgba(124,106,247,0.35);
+  color: var(--accent2);
+  border-radius: 8px;
+  padding: .35rem .9rem;
+  font-size: .82rem;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s, transform .15s, box-shadow .2s;
+  white-space: nowrap;
+}
+.btn-invoice:hover {
+  background: linear-gradient(135deg, rgba(124,106,247,0.28), rgba(167,139,250,0.22));
+  box-shadow: 0 0 12px rgba(124,106,247,0.25);
+  transform: translateY(-1px);
+}
+
+/* ══════════════════════════════════════════════════════════
+   INVOICE PRINT AREA (screen — hidden)
+══════════════════════════════════════════════════════════ */
+#invoicePrintArea { display: none; }
+
+/* ══════════════════════════════════════════════════════════
+   @MEDIA PRINT — Invoice layout
+══════════════════════════════════════════════════════════ */
+@media print {
+  /* Hide everything except the invoice */
+  body > *:not(#invoicePrintArea) { display: none !important; }
+  #invoicePrintArea { display: block !important; }
+
+  @page {
+    size: A4;
+    margin: 18mm 15mm;
+  }
+
+  body {
+    background: #fff !important;
+    color: #111 !important;
+    font-family: 'DM Sans', 'Segoe UI', Arial, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Invoice page wrapper ── */
+  .inv-page {
+    width: 100%;
+    background: #fff;
+    color: #111;
+    font-size: 11pt;
+    line-height: 1.55;
+  }
+
+  /* ── Header ── */
+  .inv-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    border-bottom: 2px solid #7c6af7;
+    padding-bottom: 14px;
+    margin-bottom: 22px;
+  }
+  .inv-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .inv-brand-icon {
+    font-size: 2rem;
+    line-height: 1;
+  }
+  .inv-brand-name {
+    font-family: 'Syne', 'Segoe UI', Arial, sans-serif;
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: #7c6af7;
+    margin: 0;
+    letter-spacing: -.02em;
+  }
+  .inv-brand-tagline {
+    font-size: .8rem;
+    color: #666;
+    margin: 0;
+    letter-spacing: .04em;
+  }
+  .inv-meta { text-align: right; }
+  .inv-label {
+    font-family: 'Syne', Arial, sans-serif;
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #7c6af7;
+    letter-spacing: .12em;
+    margin: 0;
+  }
+  .inv-date {
+    font-size: .85rem;
+    color: #555;
+    margin: 2px 0 0;
+  }
+
+  /* ── Parties ── */
+  .inv-parties {
+    display: flex;
+    gap: 40px;
+    margin-bottom: 24px;
+  }
+  .inv-from, .inv-to { flex: 1; }
+  .inv-section-label {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: #7c6af7;
+    margin: 0 0 4px;
+  }
+  .inv-party-name {
+    font-family: 'Syne', Arial, sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #111;
+    margin: 0;
+  }
+  .inv-party-sub {
+    font-size: .82rem;
+    color: #666;
+    margin: 2px 0 0;
+  }
+
+  /* ── Table ── */
+  .inv-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 18px;
+    font-size: 9.5pt;
+  }
+  .inv-table thead tr {
+    background: #7c6af7 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .inv-table th {
+    color: #fff;
+    padding: 7px 10px;
+    text-align: left;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .inv-table th:nth-child(1) { width: 32px; text-align: center; }
+  .inv-table th:nth-child(3),
+  .inv-table th:nth-child(4) { text-align: center; }
+  .inv-table th:nth-child(5),
+  .inv-table th:nth-child(6) { text-align: right; }
+
+  .inv-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #e5e7eb;
+    color: #222;
+    vertical-align: top;
+  }
+  .inv-table td:nth-child(1) { text-align: center; color: #888; font-size: .85em; }
+  .inv-table td:nth-child(3),
+  .inv-table td:nth-child(4) { text-align: center; }
+  .inv-table td:nth-child(5),
+  .inv-table td:nth-child(6) { text-align: right; font-variant-numeric: tabular-nums; }
+  .inv-table td:nth-child(6) { font-weight: 600; }
+  .inv-table tbody tr:nth-child(even) td { background: #f9f8ff; }
+
+  /* ── Totals ── */
+  .inv-totals {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    margin-bottom: 28px;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 10px;
+  }
+  .inv-total-row {
+    display: flex;
+    gap: 40px;
+    font-size: .9rem;
+    color: #444;
+    min-width: 240px;
+    justify-content: space-between;
+  }
+  .inv-grand-total {
+    font-family: 'Syne', Arial, sans-serif;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #7c6af7 !important;
+    border-top: 1.5px solid #7c6af7;
+    padding-top: 6px;
+    margin-top: 2px;
+  }
+
+  /* ── Footer ── */
+  .inv-footer {
+    border-top: 1px solid #e5e7eb;
+    padding-top: 12px;
+    text-align: center;
+    font-size: .8rem;
+    color: #666;
+    line-height: 1.7;
+  }
+  .inv-footer strong { color: #7c6af7; }
+}

@@ -63,6 +63,7 @@
         </div>
         <div class="header-right">
           <span class="user-chip">🔐 <span id="portalName">—</span></span>
+         
           <button class="btn-logout logout-btn">Sign Out</button>
         </div>
       </div>
@@ -98,7 +99,8 @@
       
 
     <section class="work-section">
-      <h2 class="section-title">📋 Your Work Items</h2>
+      <h2 class="section-title">📋 Your Work Items   <button id="downloadInvoiceBtn" class="btn-invoice" onclick="downloadInvoice()">Download Invoice</button> </h2>
+      
       <div class="table-wrap">
         <table class="work-table" id="workTable" style="display:none">
           <thead>
@@ -318,6 +320,68 @@
         <button class="btn-adv-confirm" onclick="adminCopyCredText()">📋 Copy Both</button>
         <button id="adminCredClose" class="btn-adv-cancel">Done</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       INVOICE PRINT OVERLAY (hidden, shown only on print)
+  ═══════════════════════════════════════════════════════ -->
+  <div id="invoicePrintArea" style="display:none">
+    <div class="inv-page">
+      <header class="inv-header">
+        <div class="inv-brand">
+          <span class="inv-brand-icon">⚡</span>
+          <div>
+            <h1 class="inv-brand-name">GT Edits</h1>
+          </div>
+        </div>
+        <div class="inv-meta">
+          <p class="inv-label">INVOICE</p>
+          <p class="inv-date" id="invDate"></p>
+        </div>
+      </header>
+
+      <div class="inv-parties">
+        <div class="inv-from">
+          <p class="inv-section-label">From</p>
+          <p class="inv-party-name">GT Edits</p>
+          <p class="inv-party-sub">@gt._.edits</p>
+        </div>
+        <div class="inv-to">
+          <p class="inv-section-label">Bill To</p>
+          <p class="inv-party-name" id="invClientName"></p>
+        </div>
+      </div>
+
+      <table class="inv-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Description</th>
+            <th>Date</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="invTableBody"></tbody>
+      </table>
+
+      <div class="inv-totals">
+        <div class="inv-total-row">
+          <span>Subtotal</span>
+          <span id="invSubtotal"></span>
+        </div>
+        <div class="inv-total-row inv-grand-total">
+          <span>Grand Total</span>
+          <span id="invGrandTotal"></span>
+        </div>
+      </div>
+
+      <footer class="inv-footer">
+        <p>Thank you for your business! 🙏</p>
+        <p>For queries, reach out via Instagram: <strong>@gt._.edits</strong></p>
+      </footer>
     </div>
   </div>
 

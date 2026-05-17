@@ -1,4 +1,4 @@
-import { db, ref, onValue, push, remove, update } from "./firebase.js";
+import { db, auth, ref, onValue, push, remove, update } from "./firebase.js";
 
 // ════════════════════════════════════════════════════════
 // 🔐 ADMIN CREDENTIALS — Set yours below, then save
@@ -266,7 +266,7 @@ adminClientForm.addEventListener("submit", (e) => {
   if (!name) { showToast("⚠️ Client name required", "warn"); return; }
   adminSubmitBtn.disabled = true;
   adminSubmitBtn.textContent = "Saving…";
-  push(ref(db, "clients"), { name, work: {} })
+  push(ref(db, "clients"), { name, uid: auth.currentUser?.uid, work: {} })
     .then(() => {
       showToast("🎉 Client added!");
       adminShowCred(name);
@@ -478,3 +478,49 @@ function formatDate(d) {
 function escHtml(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
+
+// ════════════════════════════════════════════════════════
+// INVOICE PDF DOWNLOAD
+// ════════════════════════════════════════════════════════
+window.downloadInvoice = () => {
+  if (!currentUser || currentUser.isAdmin) return;
+
+  // Find client data
+  const entry = Object.entries(allClients).find(
+    ([, c]) => c.name?.toLowerCase() === currentUser.clientName.toLowerCase()
+  );
+  if (!entry) { showToast("⚠️ No data to export", "warn"); return; }
+  const [, client] = entry;
+  const work = Object.values(client.work || {});
+
+  // Populate invoice fields
+  document.getElementById("invClientName").textContent = client.name;
+  document.getElementById("invDate").textContent = new Date().toLocaleDateString("en-IN", {
+    day: "2-digit", month: "long", year: "numeric"
+  });
+
+  let total = 0;
+  document.getElementById("invTableBody").innerHTML = work.map((w, i) => {
+    const qty   = Number(w.qty   || 1);
+    const price = Number(w.price || w.amt || 0);
+    const lineTotal = qty * price;
+    total += lineTotal;
+    return `<tr>
+      <td>${i + 1}</td>
+      <td>${escHtml(w.desc)}</td>
+      <td>${w.date ? formatDate(w.date) : "—"}</td>
+      <td>${qty}</td>
+      <td>₹${price.toLocaleString("en-IN")}</td>
+      <td>₹${lineTotal.toLocaleString("en-IN")}</td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("invSubtotal").textContent   = "₹" + total.toLocaleString("en-IN");
+  document.getElementById("invGrandTotal").textContent = "₹" + total.toLocaleString("en-IN");
+
+  // Show print area, trigger print, then hide
+  const area = document.getElementById("invoicePrintArea");
+  area.style.display = "block";
+  window.print();
+  area.style.display = "none";
+};
