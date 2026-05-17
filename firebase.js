@@ -3,9 +3,9 @@
 // ============================================================
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, onValue, push, remove, update }
+import { getDatabase, ref, onValue, push, remove, update, set }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-import { getAuth, signInAnonymously }
+import { getAuth, signInAnonymously, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 // Keep in sync with ../firebase.js
@@ -25,8 +25,18 @@ const auth = getAuth(app);
 
 // Sign in anonymously so auth != null satisfies Firebase DB rules.
 // This is invisible to the user — no credentials required.
-signInAnonymously(auth).catch(err => {
-  console.error("Anonymous sign-in failed:", err);
+// authReady resolves once the anonymous session is confirmed.
+const authReady = new Promise((resolve, reject) => {
+  signInAnonymously(auth)
+    .then(() => {
+      const unsub = onAuthStateChanged(auth, (user) => {
+        if (user) { unsub(); resolve(user); }
+      });
+    })
+    .catch(err => {
+      console.error("Anonymous sign-in failed:", err);
+      reject(err);
+    });
 });
 
-export { db, ref, onValue, push, remove, update, auth };
+export { db, ref, onValue, push, remove, update, set, auth, authReady };

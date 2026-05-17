@@ -1,4 +1,4 @@
-import { db, auth, ref, onValue, push, remove, update } from "./firebase.js";
+import { db, auth, authReady, ref, onValue, push, remove, update, set } from "./firebase.js";
 
 // ════════════════════════════════════════════════════════
 // 🔐 ADMIN CREDENTIALS — Set yours below, then save
@@ -62,19 +62,21 @@ const adminAdvModal = document.getElementById("adminAdvModal");
 const adminAdvAmount = document.getElementById("adminAdvAmount");
 const adminAdvInfo = document.getElementById("adminAdvInfo");
 
-// ── Firebase live listener ────────────────────────────
-onValue(ref(db, "clients"), (snapshot) => {
-  allClients = snapshot.val() || {};
-  Object.keys(allClients).forEach(id => {
-    if (!allClients[id].work) allClients[id].work = {};
+// ── Firebase live listener (waits for auth) ───────────
+authReady.then(() => {
+  onValue(ref(db, "clients"), (snapshot) => {
+    allClients = snapshot.val() || {};
+    Object.keys(allClients).forEach(id => {
+      if (!allClients[id].work) allClients[id].work = {};
+    });
+    if (!currentUser) return;
+    if (currentUser.isAdmin) renderAdmin();
+    else renderPortal();
+  }, (err) => {
+    console.error("Firebase error:", err);
+    showToast("⚠️ Connection error — retrying…", "warn");
   });
-  if (!currentUser) return;
-  if (currentUser.isAdmin) renderAdmin();
-  else renderPortal();
-}, (err) => {
-  console.error("Firebase error:", err);
-  showToast("⚠️ Connection error — retrying…", "warn");
-});
+}).catch(() => showToast("⚠️ Auth failed — check Firebase settings", "warn"));
 
 // ════════════════════════════════════════════════════════
 // LOGIN
@@ -88,6 +90,10 @@ loginForm.addEventListener("submit", (e) => {
   if (inputUser === ADMIN_USERNAME && inputPass === ADMIN_PASSWORD) {
     loginError.style.display = "none";
     currentUser = { isAdmin: true };
+    // Register this session's anonymous UID as the admin UID
+    authReady.then(user => {
+      set(ref(db, "adminUid"), user.uid).catch(() => {/* already set */});
+    });
     showAdminPanel();
     return;
   }
