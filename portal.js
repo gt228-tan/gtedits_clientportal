@@ -1,10 +1,10 @@
 import { db, auth, authReady, ref, onValue, push, remove, update, set } from "./firebase.js";
+import { ADMIN_USERNAME, ADMIN_PASSWORD } from "./config.js";
 
 // ════════════════════════════════════════════════════════
-// 🔐 ADMIN CREDENTIALS — Set yours below, then save
+// 🔐 ADMIN CREDENTIALS loaded from config.js (gitignored)
+//    Copy config.example.js → config.js and set your values
 // ════════════════════════════════════════════════════════
-const ADMIN_USERNAME = "GT";   // ← change this
-const ADMIN_PASSWORD = "GT@123";   // ← change this
 
 // ── Credential algorithm (must match app.js) ──────────
 function genUsername(name) { return name; }
