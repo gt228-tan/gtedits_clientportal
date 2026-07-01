@@ -158,7 +158,7 @@ function renderPortal() {
     return;
   }
   const [, client] = entry;
-  const work = Object.values(client.work || {});
+  const work = Object.entries(client.work || {}).map(([id, w]) => ({ id, ...w }));
   let paid = 0, pending = 0, total = 0;
   work.forEach(w => {
     const amt = Number(w.qty || 1) * Number(w.price || w.amt || 0);
@@ -176,26 +176,31 @@ function renderPortal() {
   }
   workEmpty.style.display = "none"; workTable.style.display = "";
 
-  workBody.innerHTML = work.map((w, i) => {
-    const qty = Number(w.qty || 1), price = Number(w.price || w.amt || 0);
-    const lineTotal = qty * price;
-    const status = w.status || "Pending";
-    const advAmt = Number(w.advance || 0);
-    const amtDue = status === "Pending" ? lineTotal : status === "Advance" ? lineTotal - advAmt : 0;
-    const badge = `<span class="badge badge-${status.toLowerCase()}">${status === "Pending" ? "⏳ Pending" : status === "Advance" ? "💰 Advance" : "✅ Paid"
-      }</span>`;
-    const dueCell = amtDue > 0
-      ? `<span class="due-highlight">₹${amtDue.toLocaleString("en-IN")}</span>`
-      : `<span class="due-clear">—</span>`;
-    return `<tr>
-      <td class="col-num" data-label="#">${i + 1}</td>
-      <td class="col-desc" data-label="Description">${escHtml(w.desc)}${w.date ? `<br><small class="row-date">${formatDate(w.date)}</small>` : ""}</td>
-      <td class="col-num" data-label="Qty">${qty}</td>
-      <td class="col-amt" data-label="Unit Price">₹${price.toLocaleString("en-IN")}</td>
-      <td class="col-amt col-total" data-label="Total">₹${lineTotal.toLocaleString("en-IN")}</td>
-      <td class="col-status" data-label="Status">${badge}</td>
-      <td class="col-amt col-due" data-label="Amount Due">${dueCell}</td>
-    </tr>`;
+  const sections = buildWorkSections(work);
+  workBody.innerHTML = sections.map((section) => {
+    const sectionRows = section.rows.map((w, i) => {
+      const qty = Number(w.qty || 1), price = Number(w.price || w.amt || 0);
+      const lineTotal = qty * price;
+      const status = w.status || "Pending";
+      const advAmt = Number(w.advance || 0);
+      const amtDue = status === "Pending" ? lineTotal : status === "Advance" ? lineTotal - advAmt : 0;
+      const badge = `<span class="badge badge-${status.toLowerCase()}">${status === "Pending" ? "⏳ Pending" : status === "Advance" ? "💰 Advance" : "✅ Paid"
+        }</span>`;
+      const dueCell = amtDue > 0
+        ? `<span class="due-highlight">₹${amtDue.toLocaleString("en-IN")}</span>`
+        : `<span class="due-clear">—</span>`;
+      return `<tr>
+        <td class="col-num" data-label="#">${i + 1}</td>
+        <td class="col-desc" data-label="Description">${escHtml(w.desc)}${w.date ? `<br><small class="row-date">${formatDate(w.date)}</small>` : ""}</td>
+        <td class="col-num" data-label="Qty">${qty}</td>
+        <td class="col-amt" data-label="Unit Price">₹${price.toLocaleString("en-IN")}</td>
+        <td class="col-amt col-total" data-label="Total">₹${lineTotal.toLocaleString("en-IN")}</td>
+        <td class="col-status" data-label="Status">${badge}</td>
+        <td class="col-amt col-due" data-label="Amount Due">${dueCell}</td>
+      </tr>`;
+    }).join("");
+
+    return `<tr class="section-header"><td colspan="7">${escHtml(section.label)}</td></tr>${sectionRows}`;
   }).join("");
 }
 
@@ -332,37 +337,42 @@ function refreshAdminWork() {
 }
 
 function renderAdminWorkTable(work) {
-  const entries = Object.entries(work);
+  const entries = Object.entries(work).map(([wid, w]) => ({ wid, ...w }));
   if (entries.length === 0) {
     adminWorkTable.style.display = "none"; adminWorkEmpty.style.display = "block"; return;
   }
   adminWorkTable.style.display = ""; adminWorkEmpty.style.display = "none";
-  adminWorkBody.innerHTML = entries.map(([wid, w], i) => {
-    const qty = Number(w.qty || 1), price = Number(w.price || w.amt || 0);
-    const lineTotal = qty * price;
-    const wStatus = w.status || "Pending";
-    const isAdv = wStatus === "Advance";
-    const advAmt = Number(w.advance || 0);
-    const sc = wStatus.toLowerCase();
-    const statusCell = `
-      <select class="work-status-select s-${sc}" onchange="adminChangeStatus('${activeClientId}','${wid}',this.value)">
-        <option value="Pending" ${wStatus === "Pending" ? "selected" : ""}>⏳ Pending</option>
-        <option value="Advance" ${wStatus === "Advance" ? "selected" : ""}>💰 Advance</option>
-        <option value="Paid"    ${wStatus === "Paid" ? "selected" : ""}>💚 Paid</option>
-      </select>
-      ${isAdv ? `<span class="adv-remain">₹${advAmt.toLocaleString("en-IN")} paid · ₹${(lineTotal - advAmt).toLocaleString("en-IN")} due</span>` : ""}`;
-    return `<tr>
-      <td class="col-num">${i + 1}</td>
-      <td class="col-desc">${escHtml(w.desc)}${w.date ? `<br><small class="row-date">${formatDate(w.date)}</small>` : ""}</td>
-      <td class="col-num">${qty}</td>
-      <td class="col-amt">₹${price.toLocaleString("en-IN")}</td>
-      <td class="col-amt col-total">₹${lineTotal.toLocaleString("en-IN")}</td>
-      <td class="col-status">${statusCell}</td>
-      <td class="col-actions">
-        <button class="btn-row-action edit" onclick="adminEditWork('${wid}')" title="Edit">✏️</button>
-        <button class="btn-row-action del"  onclick="adminDeleteWork('${activeClientId}','${wid}')" title="Delete">🗑️</button>
-      </td>
-    </tr>`;
+  const sections = buildWorkSections(entries);
+  adminWorkBody.innerHTML = sections.map((section) => {
+    const sectionRows = section.rows.map((w) => {
+      const qty = Number(w.qty || 1), price = Number(w.price || w.amt || 0);
+      const lineTotal = qty * price;
+      const wStatus = w.status || "Pending";
+      const isAdv = wStatus === "Advance";
+      const advAmt = Number(w.advance || 0);
+      const sc = wStatus.toLowerCase();
+      const statusCell = `
+        <select class="work-status-select s-${sc}" onchange="adminChangeStatus('${activeClientId}','${w.wid}',this.value)">
+          <option value="Pending" ${wStatus === "Pending" ? "selected" : ""}>⏳ Pending</option>
+          <option value="Advance" ${wStatus === "Advance" ? "selected" : ""}>💰 Advance</option>
+          <option value="Paid"    ${wStatus === "Paid" ? "selected" : ""}>💚 Paid</option>
+        </select>
+        ${isAdv ? `<span class="adv-remain">₹${advAmt.toLocaleString("en-IN")} paid · ₹${(lineTotal - advAmt).toLocaleString("en-IN")} due</span>` : ""}`;
+      return `<tr>
+        <td class="col-num">${section.rows.indexOf(w) + 1}</td>
+        <td class="col-desc">${escHtml(w.desc)}${w.date ? `<br><small class="row-date">${formatDate(w.date)}</small>` : ""}</td>
+        <td class="col-num">${qty}</td>
+        <td class="col-amt">₹${price.toLocaleString("en-IN")}</td>
+        <td class="col-amt col-total">₹${lineTotal.toLocaleString("en-IN")}</td>
+        <td class="col-status">${statusCell}</td>
+        <td class="col-actions">
+          <button class="btn-row-action edit" onclick="adminEditWork('${w.wid}')" title="Edit">✏️</button>
+          <button class="btn-row-action del"  onclick="adminDeleteWork('${activeClientId}','${w.wid}')" title="Delete">🗑️</button>
+        </td>
+      </tr>`;
+    }).join("");
+
+    return `<tr class="section-header"><td colspan="7">${escHtml(section.label)}</td></tr>${sectionRows}`;
   }).join("");
 }
 
@@ -373,19 +383,34 @@ adminWorkForm.addEventListener("submit", (e) => {
   const price = parseFloat(document.getElementById("adminWorkPrice").value);
   const date = document.getElementById("adminWorkDate").value || new Date().toISOString().split("T")[0];
   if (!desc || isNaN(price)) { showToast("⚠️ Fill description and price", "warn"); return; }
+  const workEntries = Object.entries(allClients[activeClientId]?.work || {});
+  const sectionMeta = getSectionMetaForSave(date, workEntries, editingWorkId);
   const entry = {
     desc, qty, price, date,
     status: editingWorkId
       ? (allClients[activeClientId]?.work?.[editingWorkId]?.status || "Pending")
-      : "Pending"
+      : "Pending",
+    sectionKey: sectionMeta.key,
+    sectionLabel: sectionMeta.label,
+    sectionType: sectionMeta.type
   };
   if (editingWorkId) {
     update(ref(db, `clients/${activeClientId}/work/${editingWorkId}`), entry)
-      .then(() => { showToast("✅ Item updated!"); resetAdminWorkForm(); })
+      .then(() => {
+        showToast("✅ Item updated!");
+        resetAdminWorkForm();
+        refreshAdminWork();
+        renderAdmin();
+      })
       .catch(err => { console.error(err); showToast("❌ Save failed", "warn"); });
   } else {
     push(ref(db, `clients/${activeClientId}/work`), entry)
-      .then(() => { showToast("✅ Work added!"); resetAdminWorkForm(); })
+      .then(() => {
+        showToast("✅ Work added!");
+        resetAdminWorkForm();
+        refreshAdminWork();
+        renderAdmin();
+      })
       .catch(err => { console.error(err); showToast("❌ Save failed", "warn"); });
   }
 });
@@ -404,7 +429,13 @@ window.adminEditWork = (wid) => {
 
 window.adminDeleteWork = (clientId, workId) => {
   remove(ref(db, `clients/${clientId}/work/${workId}`))
-    .then(() => showToast("🗑️ Item removed"))
+    .then(() => {
+      showToast("🗑️ Item removed");
+      if (activeClientId === clientId) {
+        refreshAdminWork();
+        renderAdmin();
+      }
+    })
     .catch(err => { console.error(err); showToast("❌ Delete failed", "warn"); });
 };
 
@@ -413,7 +444,13 @@ window.adminChangeStatus = (clientId, workId, newStatus) => {
     openAdminAdvance(clientId, workId);
   } else {
     update(ref(db, `clients/${clientId}/work/${workId}`), { status: newStatus, advance: 0 })
-      .then(() => showToast(newStatus === "Paid" ? "✅ Marked Paid" : "↩️ Marked Pending"))
+      .then(() => {
+        showToast(newStatus === "Paid" ? "✅ Marked Paid" : "↩️ Marked Pending");
+        if (activeClientId === clientId) {
+          refreshAdminWork();
+          renderAdmin();
+        }
+      })
       .catch(err => { console.error(err); showToast("❌ Update failed", "warn"); refreshAdminWork(); });
   }
 };
@@ -457,7 +494,12 @@ document.getElementById("adminAdvConfirmBtn").addEventListener("click", () => {
   const amount = parseFloat(adminAdvAmount.value);
   if (isNaN(amount) || amount < 0) { showToast("⚠️ Enter a valid amount", "warn"); return; }
   update(ref(db, `clients/${pendingAdvClientId}/work/${pendingAdvWorkId}`), { status: "Advance", advance: amount })
-    .then(() => { showToast("💰 Advance saved!"); closeAdminAdvance(); })
+    .then(() => {
+      showToast("💰 Advance saved!");
+      closeAdminAdvance();
+      refreshAdminWork();
+      renderAdmin();
+    })
     .catch(err => { console.error(err); showToast("❌ Save failed", "warn"); });
 });
 document.getElementById("adminAdvCancelBtn").addEventListener("click", () => closeAdminAdvance(true));
@@ -483,6 +525,104 @@ function formatDate(d) {
 }
 function escHtml(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function normalizeDate(dateValue) {
+  if (!dateValue) return null;
+  const [y, m, d] = String(dateValue).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+function compareWorkDates(a, b) {
+  const da = normalizeDate(a);
+  const db = normalizeDate(b);
+  if (!da && !db) return 0;
+  if (!da) return 1;
+  if (!db) return -1;
+  return da - db;
+}
+
+function getIsoWeekKey(dateValue) {
+  const date = normalizeDate(dateValue) || new Date();
+  const temp = new Date(date);
+  temp.setHours(0, 0, 0, 0);
+  const day = temp.getDay() || 7;
+  temp.setDate(temp.getDate() + 4 - day);
+  const yearStart = new Date(temp.getFullYear(), 0, 1);
+  const dayOfYear = Math.floor((temp - yearStart) / 86400000) + 1;
+  const week = Math.ceil(dayOfYear / 7);
+  return `${temp.getFullYear()}-${week}`;
+}
+
+function getMonthKey(dateValue) {
+  const date = normalizeDate(dateValue) || new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function buildSectionLabel(dateValue, type) {
+  const date = normalizeDate(dateValue) || new Date();
+  if (type === "month") {
+    return date.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  }
+  const week = getIsoWeekKey(dateValue);
+  const [year, weekNo] = week.split("-");
+  return `Week ${weekNo} • ${date.toLocaleDateString("en-IN", { month: "short", year: "numeric" })}`;
+}
+
+function getWorkSectionMeta(dateValue, previousItem) {
+  const date = normalizeDate(dateValue) || new Date();
+  const monthKey = getMonthKey(dateValue);
+  const weekKey = getIsoWeekKey(dateValue);
+
+  if (!previousItem) {
+    return { key: `month:${monthKey}`, label: buildSectionLabel(dateValue, "month"), type: "month" };
+  }
+
+  const prevDate = normalizeDate(previousItem.date) || new Date();
+  const prevMonthKey = getMonthKey(previousItem.date);
+  const prevWeekKey = getIsoWeekKey(previousItem.date);
+
+  if (monthKey !== prevMonthKey) {
+    return { key: `month:${monthKey}`, label: buildSectionLabel(dateValue, "month"), type: "month" };
+  }
+
+  if (weekKey !== prevWeekKey) {
+    return { key: `week:${weekKey}`, label: buildSectionLabel(dateValue, "week"), type: "week" };
+  }
+
+  return {
+    key: previousItem.sectionKey || `week:${weekKey}`,
+    label: previousItem.sectionLabel || buildSectionLabel(dateValue, "week"),
+    type: previousItem.sectionType || "week"
+  };
+}
+
+function getSectionMetaForSave(dateValue, existingWorkEntries, currentWorkId) {
+  const items = existingWorkEntries
+    .filter(([id]) => id !== currentWorkId)
+    .map(([id, item]) => ({ id, ...item }));
+  const latest = [...items].sort((a, b) => compareWorkDates(a.date, b.date)).pop();
+  return getWorkSectionMeta(dateValue, latest);
+}
+
+function buildWorkSections(items) {
+  const sorted = [...items].sort((a, b) => compareWorkDates(a.date, b.date));
+  const sections = [];
+  let currentSection = null;
+  let previousItem = null;
+
+  sorted.forEach((item) => {
+    const meta = getWorkSectionMeta(item.date, previousItem);
+    if (!currentSection || currentSection.key !== meta.key) {
+      currentSection = { key: meta.key, label: meta.label, rows: [] };
+      sections.push(currentSection);
+    }
+    currentSection.rows.push(item);
+    previousItem = item;
+  });
+
+  return sections;
 }
 
 // ════════════════════════════════════════════════════════

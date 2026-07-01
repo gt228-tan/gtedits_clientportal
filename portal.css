@@ -383,6 +383,17 @@ body {
 .work-table tbody tr:last-child td { border-bottom: none; }
 .work-table tbody tr:hover { background: rgba(255,255,255,0.025); }
 
+.section-header td {
+  background: rgba(124, 106, 247, 0.16);
+  color: var(--text);
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
 .col-num    { text-align: center; width: 42px; }
 .col-amt    { text-align: right; font-variant-numeric: tabular-nums; }
 .col-total  { font-weight: 600; }
