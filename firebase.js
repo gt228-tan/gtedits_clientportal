@@ -1,14 +1,19 @@
 // ============================================================
-// firebase.js — Client Portal  (same project as admin panel)
+// firebase.js — Client Portal  (Email/Password auth)
 // ============================================================
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, onValue, push, remove, update, set }
+import { getDatabase, ref, onValue, push, remove, update, set, get }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-import { getAuth, signInAnonymously, onAuthStateChanged }
-  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInAnonymously,
+  signOut,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-// Keep in sync with ../firebase.js
 const firebaseConfig = {
   apiKey: "AIzaSyCry6lkG2eeu7GbiIb_JcjsYyy_v9kXd6s",
   authDomain: "client-tracker-b9331.firebaseapp.com",
@@ -19,24 +24,30 @@ const firebaseConfig = {
   databaseURL: "https://client-tracker-b9331-default-rtdb.asia-southeast1.firebasedatabase.app/"
 };
 
+// ── Primary app (used for admin + client sessions) ────────
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 
-// Sign in anonymously so auth != null satisfies Firebase DB rules.
-// This is invisible to the user — no credentials required.
-// authReady resolves once the anonymous session is confirmed.
-const authReady = new Promise((resolve, reject) => {
-  signInAnonymously(auth)
-    .then(() => {
-      const unsub = onAuthStateChanged(auth, (user) => {
-        if (user) { unsub(); resolve(user); }
-      });
-    })
-    .catch(err => {
-      console.error("Anonymous sign-in failed:", err);
-      reject(err);
-    });
+// ── Secondary app — used ONLY to create new client accounts
+// without signing out the currently-logged-in admin.
+const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+const secondaryAuth = getAuth(secondaryApp);
+
+// ── authReady: resolves once Firebase tells us the current
+// auth state (user object if already signed in, null if not).
+const authReady = new Promise((resolve) => {
+  const unsub = onAuthStateChanged(auth, (user) => {
+    unsub(); // fire only once
+    resolve(user);
+  });
 });
 
-export { db, ref, onValue, push, remove, update, set, auth, authReady };
+export {
+  db, auth, secondaryAuth, authReady,
+  ref, onValue, push, remove, update, set, get,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInAnonymously,
+  signOut
+};
