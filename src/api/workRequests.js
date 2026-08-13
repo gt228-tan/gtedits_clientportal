@@ -1,4 +1,6 @@
-const BASE = `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:3001/api/work-requests`;
+import { API_BASE } from './config';
+
+const BASE = `${API_BASE}/work-requests`;
 
 /** Client: submit a new work request */
 export async function submitWorkRequest(data) {

@@ -1,4 +1,4 @@
-const API = `http://${window.location.hostname}:3001/api`;
+import { API_BASE as API } from './config';
 
 // ── Helper ─────────────────────────────────────────────────
 async function apiRequest(method, path, token, body) {

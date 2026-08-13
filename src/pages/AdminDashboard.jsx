@@ -16,6 +16,7 @@ import WorkRequestsPanel               from '../components/WorkRequestsPanel';
 import ProjectDeliverablesSection      from '../components/ProjectDeliverablesSection';
 import DeliverablePreviewModal          from '../components/DeliverablePreviewModal';
 import { fetchProjects, createProject, deleteProject, updateProjectStatus, fetchRevisions } from '../api/projects';
+import { API_BASE } from '../api/config';
 
 const PROJECT_STATUS_LABELS = {
   work_request:            { label: 'Work Request',            color: 'muted'  },
@@ -69,7 +70,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchPending = async () => {
       try {
-        const res  = await fetch(`http://${window.location.hostname}:3001/api/work-requests?status=Pending`);
+        const res  = await fetch(`${API_BASE}/work-requests?status=Pending`);
         if (!res.ok) return;
         const data = await res.json();
         setPendingCount(data.length);
