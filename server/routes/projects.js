@@ -109,7 +109,7 @@ router.patch('/:projectId/status', requireAuth('admin'), async (req, res) => {
     const { status } = req.body;
     const VALID = [
       'work_request', 'approved', 'project_created', 'in_progress',
-      'deliverable_uploaded', 'awaiting_client_approval', 'approved_by_client',
+      'deliverable_uploaded', 'awaiting_client_approval', 'awaiting_client_response', 'approved_by_client',
       'revision_requested', 'in_revision', 'completed',
     ];
     if (!VALID.includes(status)) {

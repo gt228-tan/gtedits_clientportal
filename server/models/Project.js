@@ -7,6 +7,7 @@ const PROJECT_STATUSES = [
   'in_progress',
   'deliverable_uploaded',
   'awaiting_client_approval',
+  'awaiting_client_response',
   'approved_by_client',
   'revision_requested',
   'in_revision',

@@ -12,11 +12,19 @@ import { fetchClientProjects } from '../api/projects';
 import { fetchClientDeliverables, approveDeliverable, requestRevision, downloadDeliverable } from '../api/deliverables';
 
 const STATUS_CONFIG = {
-  awaiting_approval:   { label: 'Awaiting Your Approval', color: 'amber', icon: '🟡' },
-  approved:            { label: 'Approved',               color: 'green', icon: '✅' },
-  revision_requested:  { label: 'Revision Requested',     color: 'red',   icon: '🔴' },
-  superseded:          { label: 'Superseded',             color: 'muted', icon: '⚫' },
-  draft:               { label: 'Draft',                  color: 'muted', icon: '⚪' },
+  // Deliverable statuses
+  awaiting_approval:        { label: 'Awaiting Your Approval', color: 'amber', icon: '🟡' },
+  approved:                 { label: 'Approved',               color: 'green', icon: '✅' },
+  revision_requested:       { label: 'Revision Requested',     color: 'red',   icon: '🔴' },
+  superseded:               { label: 'Superseded',             color: 'muted', icon: '⚫' },
+  draft:                    { label: 'Draft',                  color: 'muted', icon: '⚪' },
+
+  // Project statuses
+  project_created:          { label: 'Project Created',        color: 'muted', icon: '📁' },
+  awaiting_client_response: { label: 'Awaiting Client Response', color: 'amber', icon: '🟡' },
+  awaiting_client_approval: { label: 'Awaiting Client Response', color: 'amber', icon: '🟡' },
+  completed:                { label: 'Completed',              color: 'green', icon: '✅' },
+  approved_by_client:       { label: 'Completed',              color: 'green', icon: '✅' },
 };
 
 function formatBytes(b) {
@@ -196,7 +204,7 @@ export default function ClientPortal() {
   };
 
   // Pending approval count for badge
-  const pendingApprovalCount = projects.filter(p => p.status === 'awaiting_client_approval').length;
+  const pendingApprovalCount = projects.filter(p => ['awaiting_client_response', 'awaiting_client_approval'].includes(p.status)).length;
 
   return (
     <div className="admin-layout">
@@ -474,7 +482,7 @@ export default function ClientPortal() {
               <div className="proj-list">
                 {projects.map(p => {
                   const sc = STATUS_CONFIG[p.status] || { label: p.status, color: 'muted', icon: '⚪' };
-                  const needsAction = p.status === 'awaiting_client_approval';
+                  const needsAction = ['awaiting_client_response', 'awaiting_client_approval'].includes(p.status);
                   return (
                     <div
                       key={p._id}
@@ -508,14 +516,14 @@ export default function ClientPortal() {
         {activeTab === 'projects' && selectedProject && (
           <section className="admin-section">
             {/* Status banner */}
-            {selectedProject.status === 'awaiting_client_approval' && (
+            {['awaiting_client_response', 'awaiting_client_approval'].includes(selectedProject.status) && (
               <div className="dlv-action-banner">
                 ⚡ <strong>Action Required:</strong> Please review the latest deliverable below and approve or request changes.
               </div>
             )}
-            {selectedProject.status === 'approved_by_client' && (
+            {['completed', 'approved_by_client'].includes(selectedProject.status) && (
               <div className="dlv-success-banner">
-                ✅ You have approved this project. Thank you!
+                ✅ Deliverable approved and project completed. Thank you!
               </div>
             )}
             {selectedProject.status === 'revision_requested' && (

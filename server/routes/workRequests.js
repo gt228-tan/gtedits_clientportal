@@ -1,60 +1,101 @@
-const express     = require('express');
-const router      = express.Router();
+const express = require('express');
+const router = express.Router();
 const WorkRequest = require('../models/WorkRequest');
-const Project     = require('../models/Project');
-const { sendAdminNotification } = require('../utils/sendEmail');
+const Project = require('../models/Project');
+const ClientEmail = require('../models/ClientEmail');
+const { sendAdminNotification, sendClientRequestApprovalNotification, sendClientRequestRejectionNotification } = require('../utils/sendEmail');
+const { getClientContactEmail } = require('../utils/getClientEmail');
 
 /**
  * Helper: Automatically create a Project when a WorkRequest is approved.
  * Ensures no duplicate project is created if approved multiple times.
  */
-async function createProjectForApprovedRequest(workRequest) {
+async function createProjectForApprovedRequest(workRequest, options = {}) {
+  const { isExplicitApproval = false } = options;
+  let project = null;
+  let isNewProject = false;
+
+  // ── Step 1: Create project (if not already existing) ───────
   try {
-    // 1. Prevent duplicate project creation for the same work request
-    const existing = await Project.findOne({ workRequestId: workRequest._id });
-    if (existing) {
-      return existing;
-    }
+    project = await Project.findOne({ workRequestId: workRequest._id });
+    if (!project) {
+      // Resolve clientFirebaseUid
+      let clientFirebaseUid = workRequest.clientFirebaseUid;
 
-    // 2. Resolve clientFirebaseUid
-    let clientFirebaseUid = workRequest.clientFirebaseUid;
-
-    if (!clientFirebaseUid || clientFirebaseUid === workRequest.clientId) {
-      const match = await Project.findOne({
-        $or: [
-          { firebaseClientId: workRequest.clientId },
-          { clientName: workRequest.clientName }
-        ],
-        clientFirebaseUid: { $exists: true, $ne: '', $ne: workRequest.clientId }
-      });
-      if (match) {
-        clientFirebaseUid = match.clientFirebaseUid;
-      } else {
-        clientFirebaseUid = workRequest.clientFirebaseUid || workRequest.clientId;
+      if (!clientFirebaseUid || clientFirebaseUid === workRequest.clientId) {
+        const match = await Project.findOne({
+          $or: [
+            { firebaseClientId: workRequest.clientId },
+            { clientName: workRequest.clientName }
+          ],
+          clientFirebaseUid: { $exists: true, $nin: ['', workRequest.clientId] }
+        });
+        if (match) {
+          clientFirebaseUid = match.clientFirebaseUid;
+        } else {
+          clientFirebaseUid = workRequest.clientFirebaseUid || workRequest.clientId;
+        }
       }
+
+      // Determine project title
+      const projectTitle = (workRequest.title && workRequest.title.trim())
+        ? workRequest.title.trim()
+        : `${workRequest.type}${workRequest.gameName ? ' (' + workRequest.gameName + ')' : ''}`;
+
+      // Create new Project
+      project = await Project.create({
+        firebaseClientId: workRequest.clientId,
+        clientFirebaseUid: clientFirebaseUid,
+        clientName: workRequest.clientName,
+        title: projectTitle,
+        description: workRequest.remarks || `Auto-created from approved Work Request (${workRequest.category} - ${workRequest.type})`,
+        status: 'project_created',
+        workRequestId: workRequest._id,
+      });
+
+      isNewProject = true;
+      console.log(`🎉 Auto-created project "${project.title}" (ID: ${project._id}) for client "${project.clientName}"`);
     }
-
-    // 3. Determine project title
-    const projectTitle = (workRequest.title && workRequest.title.trim())
-      ? workRequest.title.trim()
-      : `${workRequest.type}${workRequest.gameName ? ' (' + workRequest.gameName + ')' : ''}`;
-
-    // 4. Create new Project
-    const project = await Project.create({
-      firebaseClientId:  workRequest.clientId,
-      clientFirebaseUid: clientFirebaseUid,
-      clientName:        workRequest.clientName,
-      title:             projectTitle,
-      description:       workRequest.remarks || `Auto-created from approved Work Request (${workRequest.category} - ${workRequest.type})`,
-      status:            'approved',
-      workRequestId:     workRequest._id,
-    });
-
-    console.log(`🎉 Auto-created project "${project.title}" (ID: ${project._id}) for client "${project.clientName}"`);
-    return project;
   } catch (err) {
     console.error('❌ Error auto-creating project for work request:', err.message);
   }
+
+  // ── Step 2: Send approval email ONLY IF NOT SENT ALREADY ──
+  // Send email if:
+  // 1. Approval email has NOT been sent yet (!workRequest.approvalEmailSent) AND
+  // 2. Either this is an explicit approval action OR a brand-new project was just created
+  const shouldSendEmail = !workRequest.approvalEmailSent && (isExplicitApproval || isNewProject);
+
+  if (shouldSendEmail) {
+    try {
+      const clientEmail = await getClientContactEmail(
+        workRequest.clientId,
+        workRequest.clientFirebaseUid || project?.clientFirebaseUid,
+        workRequest.clientName
+      );
+      console.log(`[ApprovalEmail] Resolved email for "${workRequest.clientName}" (clientId: ${workRequest.clientId}): "${clientEmail || '(none)'}"`);
+
+      if (clientEmail) {
+        await sendClientRequestApprovalNotification({
+          clientEmail,
+          clientName: workRequest.clientName,
+          workRequest,
+        });
+        console.log(`✅ Approval notification sent to ${clientEmail}`);
+      } else {
+        console.warn(`⚠️ No notification email found for client "${workRequest.clientName}" (clientId: ${workRequest.clientId}, uid: ${workRequest.clientFirebaseUid}). Email NOT sent.`);
+      }
+    } catch (emailErr) {
+      console.error(`❌ Failed to send approval email for "${workRequest.clientName}":`, emailErr.message);
+    } finally {
+      await WorkRequest.findByIdAndUpdate(workRequest._id, { approvalEmailSent: true }).catch(() => {});
+    }
+  } else if (!workRequest.approvalEmailSent && project) {
+    // If project already existed previously and email wasn't sent (or legacy), mark approvalEmailSent as true without re-sending email
+    await WorkRequest.findByIdAndUpdate(workRequest._id, { approvalEmailSent: true }).catch(() => {});
+  }
+
+  return project;
 }
 
 /**
@@ -64,17 +105,89 @@ async function syncApprovedWorkRequests() {
   try {
     const approvedRequests = await WorkRequest.find({ status: 'Approved' });
     for (const req of approvedRequests) {
-      await createProjectForApprovedRequest(req);
+      await createProjectForApprovedRequest(req, { isExplicitApproval: false });
     }
   } catch (err) {
     console.error('❌ Error syncing approved work requests:', err.message);
   }
 }
 
+/**
+ * Helper: Notify client via email when a WorkRequest is rejected.
+ */
+async function notifyClientOfRejection(workRequest, reason) {
+  try {
+    if (workRequest.rejectionEmailSent) return;
+
+    const clientEmail = await getClientContactEmail(
+      workRequest.clientId,
+      workRequest.clientFirebaseUid,
+      workRequest.clientName
+    );
+
+    console.log(`[RejectionEmail] Resolved email for "${workRequest.clientName}" (clientId: ${workRequest.clientId}): "${clientEmail || '(none)'}"`);
+
+    if (clientEmail) {
+      await sendClientRequestRejectionNotification({
+        clientEmail,
+        clientName: workRequest.clientName,
+        workRequest,
+        reason: reason || workRequest.adminNote,
+      });
+      await WorkRequest.findByIdAndUpdate(workRequest._id, { rejectionEmailSent: true }).catch(() => {});
+      console.log(`✅ Rejection notification sent to ${clientEmail}`);
+    } else {
+      console.warn(`⚠️ No notification email found for client "${workRequest.clientName}". Rejection email NOT sent.`);
+    }
+  } catch (err) {
+    console.error(`❌ Failed to send rejection email for "${workRequest.clientName}":`, err.message);
+  }
+}
+
+// ── POST /api/work-requests/client-email — Save notification email to MongoDB ─
+router.post('/client-email', async (req, res) => {
+  try {
+    const { clientId, clientName, contactEmail } = req.body;
+    if (!contactEmail || !contactEmail.trim()) {
+      return res.status(400).json({ error: 'contactEmail is required' });
+    }
+    const emailToSave = contactEmail.trim();
+    const record = await ClientEmail.findOneAndUpdate(
+      { $or: [{ clientId }, { clientName }] },
+      { clientId, clientName, contactEmail: emailToSave },
+      { upsert: true, new: true }
+    );
+    console.log(`✅ Saved notification email "${emailToSave}" for client "${clientName || clientId}" in MongoDB`);
+    res.json(record);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── POST /api/work-requests — Client submits new request ─────
 router.post('/', async (req, res) => {
   try {
-    const { clientId, clientFirebaseUid, clientName, title, category, type, gameName, materials, budget, deadline, remarks } = req.body;
+    const { clientId, clientFirebaseUid, clientName, title, category, type, gameName, materials, image, budget, deadline, remarks, notificationEmail, contactEmail } = req.body;
+    
+    // Auto-save notification email to client record in RTDB & MongoDB if provided
+    const providedEmail = (notificationEmail || contactEmail || '').trim();
+    if (providedEmail && !providedEmail.includes('gtportal.com')) {
+      ClientEmail.findOneAndUpdate(
+        { $or: [{ clientId }, { clientName }] },
+        { clientId, clientName, contactEmail: providedEmail },
+        { upsert: true }
+      ).catch(e => console.warn('Failed auto-saving ClientEmail:', e.message));
+
+      if (clientId) {
+        const DATABASE_URL = process.env.FIREBASE_DB_URL || "https://client-tracker-b9331-default-rtdb.asia-southeast1.firebasedatabase.app/";
+        fetch(`${DATABASE_URL.replace(/\/+$/, '')}/clients/${encodeURIComponent(clientId)}.json`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contactEmail: providedEmail, notificationEmail: providedEmail })
+        }).catch(e => console.warn('Failed to auto-update client notification email:', e.message));
+      }
+    }
+
     const doc = await WorkRequest.create({
       clientId,
       clientFirebaseUid: clientFirebaseUid || '',
@@ -84,6 +197,7 @@ router.post('/', async (req, res) => {
       type,
       gameName: gameName || '',
       materials: materials || '',
+      image: image || '',
       budget,
       deadline,
       remarks: remarks || '',
@@ -107,7 +221,7 @@ router.get('/', async (req, res) => {
     await syncApprovedWorkRequests();
 
     const filter = req.query.status ? { status: req.query.status } : {};
-    const docs   = await WorkRequest.find(filter).sort({ createdAt: -1 });
+    const docs = await WorkRequest.find(filter).sort({ createdAt: -1 });
     res.json(docs);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -118,7 +232,7 @@ router.get('/', async (req, res) => {
 router.get('/client/:clientId', async (req, res) => {
   try {
     const docs = await WorkRequest.find({ clientId: req.params.clientId })
-                                  .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 });
     res.json(docs);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -140,9 +254,10 @@ router.get('/:id/action', async (req, res) => {
 
     // If Approval requested:
     if (status === 'Approved') {
+      const isAlreadyApproved = doc.status === 'Approved';
       doc.status = 'Approved';
       await doc.save();
-      await createProjectForApprovedRequest(doc);
+      await createProjectForApprovedRequest(doc, { isExplicitApproval: !isAlreadyApproved });
 
       return res.send(`
         <!DOCTYPE html>
@@ -271,6 +386,9 @@ router.post('/:id/reject', async (req, res) => {
       return res.status(404).send('<h2 style="font-family:sans-serif;color:red;">Work Request not found</h2>');
     }
 
+    // Send rejection email to client
+    await notifyClientOfRejection(doc, rejectReason);
+
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -313,7 +431,9 @@ router.patch('/:id/status', async (req, res) => {
     if (!doc) return res.status(404).json({ error: 'Not found' });
 
     if (status === 'Approved') {
-      await createProjectForApprovedRequest(doc);
+      await createProjectForApprovedRequest(doc, { isExplicitApproval: true });
+    } else if (status === 'Rejected') {
+      await notifyClientOfRejection(doc, adminNote);
     }
 
     res.json(doc);

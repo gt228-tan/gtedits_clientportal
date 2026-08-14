@@ -1,15 +1,17 @@
-const express         = require('express');
-const router          = express.Router();
-const multer          = require('multer');
-const mongoose        = require('mongoose');
-const Project         = require('../models/Project');
-const Deliverable     = require('../models/Deliverable');
+const express = require('express');
+const router = express.Router();
+const multer = require('multer');
+const mongoose = require('mongoose');
+const Project = require('../models/Project');
+const Deliverable = require('../models/Deliverable');
 const RevisionRequest = require('../models/RevisionRequest');
 const { requireAuth } = require('../middleware/auth');
 const { getDeliverablesBucket } = require('../config/gridfs');
+const { sendClientDeliverableNotification } = require('../utils/sendEmail');
+const { getClientContactEmail } = require('../utils/getClientEmail');
 
-// ── Max file size: 100 MB ─────────────────────────────────────
-const MAX_SIZE = 100 * 1024 * 1024; // bytes
+// ── Max file size: 50MB ─────────────────────────────────────
+const MAX_SIZE = 50 * 1024 * 1024;
 
 // ── Multer: memory storage (stream directly to GridFS) ────────
 // We use memoryStorage so multer holds the file in a Buffer.
@@ -39,8 +41,8 @@ function isValidUrl(str) {
 
 /** Format bytes to human-readable string */
 function formatBytes(b) {
-  if (b < 1024)          return `${b} B`;
-  if (b < 1024 * 1024)   return `${(b / 1024).toFixed(1)} KB`;
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
   return `${(b / 1024 / 1024).toFixed(2)} MB`;
 }
 
@@ -103,14 +105,14 @@ router.post(
       // ── 6. Stream to GridFS ───────────────────────────────
       const bucket = getDeliverablesBucket();
       const gridMetadata = {
-        projectId:    project._id.toString(),
-        clientId:     project.clientFirebaseUid,
-        uploadedBy:   req.uid,
+        projectId: project._id.toString(),
+        clientId: project.clientFirebaseUid,
+        uploadedBy: req.uid,
         originalName: req.file.originalname,
-        mimeType:     req.file.mimetype,
-        size:         req.file.size,
-        version:      nextVersion,
-        type:         'file',
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+        version: nextVersion,
+        type: 'file',
       };
       const fileId = await uploadBufferToGridFS(
         bucket,
@@ -121,26 +123,41 @@ router.post(
 
       // ── 7. Create Deliverable document ────────────────────
       const deliverable = await Deliverable.create({
-        projectId:        project._id,
+        projectId: project._id,
         clientFirebaseUid: project.clientFirebaseUid,
-        uploadedBy:       req.uid,
-        type:             'file',
-        name:             name.trim(),
-        description:      description || '',
+        uploadedBy: req.uid,
+        type: 'file',
+        name: name.trim(),
+        description: description || '',
         fileId,
         originalFileName: req.file.originalname,
-        mimeType:         req.file.mimetype,
-        fileSize:         req.file.size,
-        url:              null,
-        version:          nextVersion,
-        allowDownload:    allowDownload !== undefined ? String(allowDownload) !== 'false' : true,
-        status:           'awaiting_approval',
+        mimeType: req.file.mimetype,
+        fileSize: req.file.size,
+        url: null,
+        version: nextVersion,
+        allowDownload: allowDownload !== undefined ? String(allowDownload) !== 'false' : true,
+        status: 'awaiting_approval',
       });
 
       // ── 8. Update project status ──────────────────────────
       await Project.findByIdAndUpdate(project._id, {
-        status: 'awaiting_client_approval',
+        status: 'awaiting_client_response',
       });
+
+      // ── 9. Notify client via email ────────────────────────
+      try {
+        const clientEmail = await getClientContactEmail(project.firebaseClientId, project.clientFirebaseUid, project.clientName);
+        if (clientEmail) {
+          await sendClientDeliverableNotification({
+            clientEmail,
+            clientName: project.clientName,
+            project,
+            deliverable,
+          });
+        }
+      } catch (emailErr) {
+        console.error('Failed to notify client of deliverable upload:', emailErr.message);
+      }
 
       res.status(201).json({
         deliverable,
@@ -167,8 +184,8 @@ router.post('/projects/:projectId/deliverables/link', requireAuth('admin'), asyn
 
     const { name, description, url } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Deliverable name is required' });
-    if (!url || !url.trim())   return res.status(400).json({ error: 'URL is required' });
-    if (!isValidUrl(url))      return res.status(400).json({ error: 'URL must use http:// or https://' });
+    if (!url || !url.trim()) return res.status(400).json({ error: 'URL is required' });
+    if (!isValidUrl(url)) return res.status(400).json({ error: 'URL must use http:// or https://' });
 
     // Next version
     const latest = await Deliverable.findOne({ projectId: project._id }, {}, { sort: { version: -1 } });
@@ -183,22 +200,37 @@ router.post('/projects/:projectId/deliverables/link', requireAuth('admin'), asyn
     }
 
     const deliverable = await Deliverable.create({
-      projectId:         project._id,
+      projectId: project._id,
       clientFirebaseUid: project.clientFirebaseUid,
-      uploadedBy:        req.uid,
-      type:              'link',
-      name:              name.trim(),
-      description:       description || '',
-      fileId:            null,
-      originalFileName:  null,
-      mimeType:          null,
-      fileSize:          null,
-      url:               url.trim(),
-      version:           nextVersion,
-      status:            'awaiting_approval',
+      uploadedBy: req.uid,
+      type: 'link',
+      name: name.trim(),
+      description: description || '',
+      fileId: null,
+      originalFileName: null,
+      mimeType: null,
+      fileSize: null,
+      url: url.trim(),
+      version: nextVersion,
+      status: 'awaiting_approval',
     });
 
-    await Project.findByIdAndUpdate(project._id, { status: 'awaiting_client_approval' });
+    await Project.findByIdAndUpdate(project._id, { status: 'awaiting_client_response' });
+
+    // Notify client via email
+    try {
+      const clientEmail = await getClientContactEmail(project.firebaseClientId, project.clientFirebaseUid, project.clientName);
+      if (clientEmail) {
+        await sendClientDeliverableNotification({
+          clientEmail,
+          clientName: project.clientName,
+          project,
+          deliverable,
+        });
+      }
+    } catch (emailErr) {
+      console.error('Failed to notify client of link deliverable upload:', emailErr.message);
+    }
 
     res.status(201).json({ deliverable });
   } catch (err) {
@@ -403,7 +435,7 @@ router.post('/deliverables/:deliverableId/approve', requireAuth('client'), async
     }
 
     // Mark deliverable as approved
-    d.status     = 'approved';
+    d.status = 'approved';
     d.approvedBy = req.uid;
     d.approvedAt = new Date();
     await d.save();
@@ -412,11 +444,11 @@ router.post('/deliverables/:deliverableId/approve', requireAuth('client'), async
     const project = await Project.findByIdAndUpdate(
       d.projectId,
       {
-        status:                'completed',
-        approvedBy:            req.uid,
-        approvedAt:            new Date(),
+        status: 'completed',
+        approvedBy: req.uid,
+        approvedAt: new Date(),
         approvedDeliverableId: d._id,
-        approvedVersion:       d.version,
+        approvedVersion: d.version,
       },
       { new: true }
     );
@@ -458,12 +490,12 @@ router.post('/deliverables/:deliverableId/request-revision', requireAuth('client
 
     // Create revision request record
     const revision = await RevisionRequest.create({
-      projectId:           d.projectId,
-      deliverableId:       d._id,
-      deliverableVersion:  d.version,
-      clientFirebaseUid:   req.uid,
-      clientName:          clientName || '',
-      description:         description.trim(),
+      projectId: d.projectId,
+      deliverableId: d._id,
+      deliverableVersion: d.version,
+      clientFirebaseUid: req.uid,
+      clientName: clientName || '',
+      description: description.trim(),
     });
 
     // Update project status

@@ -7,51 +7,53 @@ import {
   updatePassword
 } from '../firebase';
 import { clientEmail, clientDefaultPass, BRAND_NAME, useAuth } from '../contexts/AuthContext';
-import Toast, { showToast }           from '../components/Toast';
-import WorkModal                       from '../components/WorkModal';
-import AdvanceModal                    from '../components/AdvanceModal';
-import CredentialModal                 from '../components/CredentialModal';
-import ClientPreviewModal              from '../components/ClientPreviewModal';
-import WorkRequestsPanel               from '../components/WorkRequestsPanel';
-import ProjectDeliverablesSection      from '../components/ProjectDeliverablesSection';
-import DeliverablePreviewModal          from '../components/DeliverablePreviewModal';
+import Toast, { showToast } from '../components/Toast';
+import WorkModal from '../components/WorkModal';
+import AdvanceModal from '../components/AdvanceModal';
+import CredentialModal from '../components/CredentialModal';
+import ClientPreviewModal from '../components/ClientPreviewModal';
+import WorkRequestsPanel from '../components/WorkRequestsPanel';
+import ProjectDeliverablesSection from '../components/ProjectDeliverablesSection';
+import DeliverablePreviewModal from '../components/DeliverablePreviewModal';
 import { fetchProjects, createProject, deleteProject, updateProjectStatus, fetchRevisions } from '../api/projects';
 import { API_BASE } from '../api/config';
 
 const PROJECT_STATUS_LABELS = {
-  work_request:            { label: 'Work Request',            color: 'muted'  },
-  approved:                { label: 'Approved',                color: 'green'  },
-  project_created:         { label: 'Project Created',         color: 'muted'  },
-  in_progress:             { label: 'In Progress',             color: 'amber'  },
-  deliverable_uploaded:    { label: 'Deliverable Uploaded',    color: 'blue'   },
-  awaiting_client_approval:{ label: 'Awaiting Client Approval',color: 'amber'  },
-  approved_by_client:      { label: 'Approved by Client',      color: 'green'  },
-  revision_requested:      { label: 'Revision Requested',      color: 'red'    },
-  in_revision:             { label: 'In Revision',             color: 'amber'  },
-  completed:               { label: 'Completed',               color: 'green'  },
+  work_request: { label: 'Work Request', color: 'muted' },
+  approved: { label: 'Project Created', color: 'muted' },
+  project_created: { label: 'Project Created', color: 'muted' },
+  in_progress: { label: 'In Progress', color: 'amber' },
+  deliverable_uploaded: { label: 'Deliverable Uploaded', color: 'blue' },
+  awaiting_client_response: { label: 'Awaiting Client Response', color: 'amber' },
+  awaiting_client_approval: { label: 'Awaiting Client Response', color: 'amber' },
+  approved_by_client: { label: 'Completed', color: 'green' },
+  revision_requested: { label: 'Revision Requested', color: 'red' },
+  in_revision: { label: 'In Revision', color: 'amber' },
+  completed: { label: 'Completed', color: 'green' },
 };
 
 export default function AdminDashboard() {
   const { logout, getToken } = useAuth();
-  const [clients,     setClients]     = useState({});
-  const [workTarget,  setWorkTarget]  = useState(null);
-  const [advTarget,   setAdvTarget]   = useState(null);
-  const [credTarget,  setCredTarget]  = useState(null);
+  const [clients, setClients] = useState({});
+  const [workTarget, setWorkTarget] = useState(null);
+  const [advTarget, setAdvTarget] = useState(null);
+  const [credTarget, setCredTarget] = useState(null);
   const [previewTarget, setPreviewTarget] = useState(null);
-  const [newName,     setNewName]     = useState('');
-  const [addBusy,     setAddBusy]     = useState(false);
-  const [activeTab,   setActiveTab]   = useState('dashboard');  // 'dashboard' | 'requests' | 'projects'
+  const [newName, setNewName] = useState('');
+  const [newNotificationEmail, setNewNotificationEmail] = useState('');
+  const [addBusy, setAddBusy] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');  // 'dashboard' | 'requests' | 'projects'
   const [pendingCount, setPendingCount] = useState(0);
 
   // ── Projects state ─────────────────────────────────────────
-  const [projects,       setProjects]       = useState([]);
-  const [projectsLoading,setProjectsLoading]= useState(false);
-  const [selectedProject,setSelectedProject]= useState(null); // project detail view
+  const [projects, setProjects] = useState([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null); // project detail view
   const [showCreateProject, setShowCreateProject] = useState(false);
-  const [createForClient,   setCreateForClient]   = useState(null); // { firebaseClientId, clientFirebaseUid, clientName }
-  const [newProjectTitle,   setNewProjectTitle]   = useState('');
-  const [newProjectDesc,    setNewProjectDesc]     = useState('');
-  const [createBusy,        setCreateBusy]         = useState(false);
+  const [createForClient, setCreateForClient] = useState(null); // { firebaseClientId, clientFirebaseUid, clientName }
+  const [newProjectTitle, setNewProjectTitle] = useState('');
+  const [newProjectDesc, setNewProjectDesc] = useState('');
+  const [createBusy, setCreateBusy] = useState(false);
 
   // ── Real-time listener on /clients/ ───────────────────────
   useEffect(() => {
@@ -70,7 +72,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchPending = async () => {
       try {
-        const res  = await fetch(`${API_BASE}/work-requests?status=Pending`);
+        const res = await fetch(`${API_BASE}/work-requests?status=Pending`);
         if (!res.ok) return;
         const data = await res.json();
         setPendingCount(data.length);
@@ -86,7 +88,7 @@ export default function AdminDashboard() {
     setProjectsLoading(true);
     try {
       const token = await getToken();
-      const data  = await fetchProjects(token);
+      const data = await fetchProjects(token);
       setProjects(data);
     } catch (err) {
       showToast(`❌ ${err.message}`, 'warn');
@@ -106,9 +108,9 @@ export default function AdminDashboard() {
   Object.values(clients).forEach(c => {
     Object.values(c.work || {}).forEach(w => {
       const amt = Number(w.qty || 1) * Number(w.price || w.amt || 0);
-      if (w.status === 'Paid')         { totalEarned  += amt; }
+      if (w.status === 'Paid') { totalEarned += amt; }
       else if (w.status === 'Advance') { const adv = Number(w.advance || 0); totalEarned += adv; totalPending += (amt - adv); }
-      else                             { totalPending += amt; }
+      else { totalPending += amt; }
     });
   });
 
@@ -125,10 +127,27 @@ export default function AdminDashboard() {
     try {
       const cred   = await createUserWithEmailAndPassword(secondaryAuth, email, password);
       const newUid = cred.user.uid;
-      await push(ref(db, 'clients'), { name, uid: newUid, work: {} });
+      const notifEmail = newNotificationEmail.trim();
+      const newRef = await push(ref(db, 'clients'), {
+        name,
+        contactEmail: notifEmail,
+        notificationEmail: notifEmail,
+        uid: newUid,
+        work: {}
+      });
+
+      if (notifEmail) {
+        fetch(`${API_BASE}/work-requests/client-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId: newRef.key, clientName: name, contactEmail: notifEmail })
+        }).catch(() => {});
+      }
+
       showToast('🎉 Client added!');
       setCredTarget({ name, email, password });
       setNewName('');
+      setNewNotificationEmail('');
     } catch (err) {
       console.error(err);
       if (err.code === 'auth/email-already-in-use') {
@@ -141,8 +160,34 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleUpdateNotificationEmail = async (id, currentEmail) => {
+    const input = prompt('Enter Notification Email for client (used for emails):', currentEmail || '');
+    if (input === null) return;
+    const notifEmail = input.trim();
+    try {
+      await update(ref(db, `clients/${id}`), {
+        contactEmail: notifEmail,
+        notificationEmail: notifEmail
+      });
+
+      const clientObj = clients[id];
+      if (notifEmail) {
+        fetch(`${API_BASE}/work-requests/client-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId: id, clientName: clientObj?.name || '', contactEmail: notifEmail })
+        }).catch(() => {});
+      }
+
+      showToast('✉️ Notification email updated!');
+    } catch (err) {
+      console.error(err);
+      showToast('❌ Update failed', 'warn');
+    }
+  };
+
   const handleSetupAuth = async (id, name) => {
-    const email    = clientEmail(name);
+    const email = clientEmail(name);
     const password = clientDefaultPass(name);
     try {
       const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
@@ -159,7 +204,7 @@ export default function AdminDashboard() {
   };
 
   const handleResetPassword = async (id, name, silent = false) => {
-    const email      = clientEmail(name);
+    const email = clientEmail(name);
     const newDefault = clientDefaultPass(name);
     const candidates = [
       name.slice(0, 2).toLowerCase() + '@123',
@@ -207,11 +252,11 @@ export default function AdminDashboard() {
     try {
       const token = await getToken();
       await createProject({
-        firebaseClientId:  createForClient.firebaseClientId,
+        firebaseClientId: createForClient.firebaseClientId,
         clientFirebaseUid: createForClient.clientFirebaseUid,
-        clientName:        createForClient.clientName,
-        title:             newProjectTitle.trim(),
-        description:       newProjectDesc,
+        clientName: createForClient.clientName,
+        title: newProjectTitle.trim(),
+        description: newProjectDesc,
       }, token);
       showToast('🎉 Project created!');
       setShowCreateProject(false);
@@ -243,7 +288,7 @@ export default function AdminDashboard() {
   // ── Change status ──────────────────────────────────────────
   const handleStatusChange = async (id, status) => {
     try {
-      const token   = await getToken();
+      const token = await getToken();
       const updated = await updateProjectStatus(id, status, token);
       showToast('✅ Status updated!');
       setSelectedProject(updated);
@@ -305,8 +350,8 @@ export default function AdminDashboard() {
             <div>
               <h1>
                 {activeTab === 'requests' ? 'Work Requests'
-                 : activeTab === 'projects' ? (selectedProject ? selectedProject.title : 'Projects')
-                 : 'Admin Dashboard'}
+                  : activeTab === 'projects' ? (selectedProject ? selectedProject.title : 'Projects')
+                    : 'Admin Dashboard'}
               </h1>
               <p>Welcome back, {BRAND_NAME} 👋</p>
             </div>
@@ -361,6 +406,12 @@ export default function AdminDashboard() {
                     onChange={e => setNewName(e.target.value)}
                     required
                   />
+                  <input
+                    type="email"
+                    placeholder="Notification Email (e.g. client@gmail.com)…"
+                    value={newNotificationEmail}
+                    onChange={e => setNewNotificationEmail(e.target.value)}
+                  />
                   <button type="submit" className="btn-add-client" disabled={addBusy}>
                     {addBusy ? 'Creating…' : 'Add Client'}
                   </button>
@@ -384,19 +435,20 @@ export default function AdminDashboard() {
                       client={c}
                       onOpenWork={() => setWorkTarget({ clientId: id, clientName: c.name })}
                       onShowCred={() => setCredTarget({
-                        name:     c.name,
-                        email:    clientEmail(c.name),
+                        name: c.name,
+                        email: clientEmail(c.name),
                         password: clientDefaultPass(c.name)
                       })}
                       onPreview={() => setPreviewTarget({ clientId: id, clientName: c.name })}
                       onSetupAuth={() => handleSetupAuth(id, c.name)}
                       onReset={() => handleResetPassword(id, c.name)}
+                      onUpdateEmail={() => handleUpdateNotificationEmail(id, c.notificationEmail || c.contactEmail)}
                       onDelete={() => handleDeleteClient(id)}
                       onCreateProject={() => {
                         setCreateForClient({
-                          firebaseClientId:  id,
+                          firebaseClientId: id,
                           clientFirebaseUid: c.uid || '',
-                          clientName:        c.name,
+                          clientName: c.name,
                         });
                         setShowCreateProject(true);
                         setActiveTab('projects');
@@ -756,18 +808,19 @@ function ProjectDetailView({ project, getToken, onDelete, onStatusChange, status
 }
 
 // ── Client Card ────────────────────────────────────────────
-function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, onPreview, onDelete, onCreateProject }) {
+function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, onUpdateEmail, onPreview, onDelete, onCreateProject }) {
   const work = Object.values(client.work || {});
   let paidAmt = 0, pendingAmt = 0;
   work.forEach(w => {
     const amt = Number(w.qty || 1) * Number(w.price || w.amt || 0);
-    if (w.status === 'Paid')         { paidAmt    += amt; }
+    if (w.status === 'Paid') { paidAmt += amt; }
     else if (w.status === 'Advance') { paidAmt += Number(w.advance || 0); pendingAmt += amt - Number(w.advance || 0); }
-    else                             { pendingAmt += amt; }
+    else { pendingAmt += amt; }
   });
   const hasAuth = !!client.uid;
-  const email   = clientEmail(client.name);
+  const email = clientEmail(client.name);
   const totalVal = paidAmt + pendingAmt;
+  const notifEmail = client.notificationEmail || client.contactEmail || '';
 
   return (
     <div className="clean-client-card">
@@ -776,7 +829,10 @@ function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, 
           <div className="clean-avatar">{client.name.charAt(0).toUpperCase()}</div>
           <div className="clean-info">
             <h3 className="clean-name">{client.name}</h3>
-            <p className="clean-email">📧 {email}</p>
+            <p className="clean-email" style={{ fontSize: '0.78rem' }}>🔑 Login: {email}</p>
+            <p className="clean-email" style={{ fontSize: '0.78rem', color: notifEmail ? '#16a34a' : '#d97706', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '2px' }} onClick={onUpdateEmail} title="Click to edit notification email">
+              ✉️ Mail: {notifEmail || 'Set Notification Email'} ✏️
+            </p>
           </div>
         </div>
         <span className={`clean-status-badge ${hasAuth ? 'status-active' : 'status-pending'}`}>

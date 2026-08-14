@@ -26,6 +26,7 @@ const WorkRequestSchema = new mongoose.Schema({
 
   // ── Submission Details ───────────────────────────────────────
   materials: { type: String, default: '' },        // YT / Drive / Dropbox link
+  image:     { type: String, default: '' },        // Single image attachment (base64 or URL < 50MB)
   budget:    { type: Number, required: true },     // Budget in ₹
   deadline:  { type: Date,   required: true },     // Target completion date
   remarks:   { type: String, default: '' },        // Color theme, character, etc.
@@ -37,6 +38,8 @@ const WorkRequestSchema = new mongoose.Schema({
     default: 'Pending',
   },
   adminNote: { type: String, default: '' },        // Admin feedback / revision note
+  approvalEmailSent: { type: Boolean, default: false }, // Prevent sending duplicate approval emails
+  rejectionEmailSent: { type: Boolean, default: false }, // Prevent sending duplicate rejection emails
 }, { timestamps: true });
 
 module.exports = mongoose.model('WorkRequest', WorkRequestSchema);

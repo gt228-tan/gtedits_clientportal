@@ -13,6 +13,7 @@ function getAdminApp() {
       // verification against a project.
       // For local dev we just need the projectId.
       credential: admin.credential.applicationDefault(),
+      databaseURL: process.env.FIREBASE_DB_URL || 'https://client-tracker-b9331-default-rtdb.asia-southeast1.firebasedatabase.app',
     });
   }
   return app;

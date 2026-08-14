@@ -263,6 +263,20 @@ export default function WorkRequestsPanel() {
                   </a>
                 </div>
               )}
+              {selected.image && (
+                <div className="wr-detail-item wr-detail-full">
+                  <span className="wr-detail-label">Attached Reference Image</span>
+                  <div style={{ marginTop: '6px' }}>
+                    <a href={selected.image} target="_blank" rel="noreferrer">
+                      <img
+                        src={selected.image}
+                        alt="Client Reference Attachment"
+                        style={{ maxWidth: '100%', maxHeight: '220px', borderRadius: '10px', border: '1px solid #cbd5e1', objectFit: 'contain' }}
+                      />
+                    </a>
+                  </div>
+                </div>
+              )}
               {selected.remarks && (
                 <div className="wr-detail-item wr-detail-full">
                   <span className="wr-detail-label">Remarks</span>

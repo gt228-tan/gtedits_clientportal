@@ -15,10 +15,10 @@ const sendAdminNotification = async (workRequest) => {
 
   const formattedDeadline = workRequest.deadline
     ? new Date(workRequest.deadline).toLocaleDateString('en-IN', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      })
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
     : 'N/A';
 
   const gameRow = workRequest.category === 'Gaming' && workRequest.gameName
@@ -34,7 +34,7 @@ const sendAdminNotification = async (workRequest) => {
     : `<p><strong>Remarks:</strong> None</p>`;
 
   const approveUrl = `${serverUrl}/api/work-requests/${workRequest._id}/action?status=Approved`;
-  const rejectUrl  = `${serverUrl}/api/work-requests/${workRequest._id}/action?status=Rejected`;
+  const rejectUrl = `${serverUrl}/api/work-requests/${workRequest._id}/action?status=Rejected`;
 
   const titleRow = workRequest.title
     ? `<div style="background-color: #e0f2fe; border: 1px solid #bae6fd; padding: 12px 16px; border-radius: 6px; margin: 12px 0;">
@@ -175,10 +175,146 @@ const sendAdminRejectionNotification = async ({ workRequest, reason }) => {
   }
 };
 
+/**
+ * Send email notification to CLIENT when work request is APPROVED
+ */
+const sendClientRequestApprovalNotification = async ({ clientEmail, clientName, workRequest }) => {
+  if (!clientEmail || clientEmail.includes('gtportal.com')) {
+    console.warn(`[sendEmail] Skipping approval email for "${clientName}": email is empty or generated login email (${clientEmail})`);
+    return;
+  }
+  try {
+    const clientPortalUrl = process.env.CLIENT_URL || 'https://gtedits-clientportal.vercel.app';
+    const mailOptions = {
+      from: `"GT Client Portal" <${process.env.EMAIL_USER}>`,
+      to: clientEmail,
+      subject: `🎉 Your Work Request has been Approved: "${workRequest.title || workRequest.type}"`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 24px; color: #333; background-color: #ffffff;">
+          <h2 style="color: #16a34a; border-bottom: 2px solid #16a34a; padding-bottom: 8px; margin-top: 0;">✅ Work Request Approved</h2>
+          <p>Hi <strong>${clientName || 'Client'}</strong>,</p>
+          <p>Great news! Your work request has been approved and project editing is under way.</p>
+          
+          <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 14px; border-radius: 6px; margin: 16px 0; font-size: 14px;">
+            <p style="margin: 4px 0;"><strong>Request Title:</strong> ${workRequest.title || workRequest.type}</p>
+            <p style="margin: 4px 0;"><strong>Category:</strong> ${workRequest.category || 'N/A'}</p>
+            <p style="margin: 4px 0;"><strong>Budget:</strong> ₹${workRequest.budget ? workRequest.budget.toLocaleString('en-IN') : '0'}</p>
+          </div>
+
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${clientPortalUrl}" style="background-color: #0f1714; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; display: inline-block;">
+              🚀 Open Client Portal
+            </a>
+          </div>
+        </div>
+      `,
+    };
+    await transporter.sendMail(mailOptions);
+    console.log(`✉️ Approved notification email sent successfully to ${clientEmail}`);
+  } catch (err) {
+    console.error('Failed to send client request approval email:', err.message);
+  }
+};
+
+/**
+ * Send email notification to CLIENT when a DELIVERABLE is uploaded
+ */
+const sendClientDeliverableNotification = async ({ clientEmail, clientName, project, deliverable }) => {
+  if (!clientEmail || clientEmail.includes('gtportal.com')) {
+    console.warn(`[sendEmail] Skipping deliverable email for "${clientName}": email is empty or generated login email (${clientEmail})`);
+    return;
+  }
+  try {
+    const clientPortalUrl = process.env.CLIENT_URL || 'https://gtedits-clientportal.vercel.app';
+    const mailOptions = {
+      from: `"GT Client Portal" <${process.env.EMAIL_USER}>`,
+      to: clientEmail,
+      subject: `📦 New Deliverable Uploaded for "${project.title}" (v${deliverable.version})`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 24px; color: #333; background-color: #ffffff;">
+          <h2 style="color: #0284c7; border-bottom: 2px solid #0284c7; padding-bottom: 8px; margin-top: 0;">🎬 Deliverable Ready for Review</h2>
+          <p>Hi <strong>${clientName || 'Client'}</strong>,</p>
+          <p>A new deliverable has been uploaded for your project <strong>"${project.title}"</strong>.</p>
+          
+          <div style="background-color: #e0f2fe; border: 1px solid #bae6fd; padding: 14px; border-radius: 6px; margin: 16px 0; font-size: 14px;">
+            <p style="margin: 4px 0;"><strong>Deliverable:</strong> ${deliverable.name} (v${deliverable.version})</p>
+            <p style="margin: 4px 0;"><strong>Project:</strong> ${project.title}</p>
+          </div>
+
+          <p>Please log in to preview and approve or request revisions.</p>
+
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${clientPortalUrl}" style="background-color: #16a34a; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; display: inline-block;">
+              👀 View Deliverable
+            </a>
+          </div>
+        </div>
+      `,
+    };
+    await transporter.sendMail(mailOptions);
+    console.log(`✉️ Deliverable notification email sent successfully to ${clientEmail}`);
+  } catch (err) {
+    console.error('Failed to send client deliverable email:', err.message);
+  }
+};
+
+/**
+ * Send email notification to CLIENT when work request is REJECTED
+ */
+const sendClientRequestRejectionNotification = async ({ clientEmail, clientName, workRequest, reason }) => {
+  if (!clientEmail || clientEmail.includes('gtportal.com')) {
+    console.warn(`[sendEmail] Skipping rejection email for "${clientName}": email is empty or generated login email (${clientEmail})`);
+    return;
+  }
+  try {
+    const clientPortalUrl = process.env.CLIENT_URL || 'https://gtedits-clientportal.vercel.app';
+    const rejectionReason = reason || workRequest?.adminNote || 'No specific reason provided.';
+    const mailOptions = {
+      from: `"GT Client Portal" <${process.env.EMAIL_USER}>`,
+      to: clientEmail,
+      subject: `❌ Update regarding your Work Request: "${workRequest.title || workRequest.type}"`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 24px; color: #333; background-color: #ffffff;">
+          <h2 style="color: #dc2626; border-bottom: 2px solid #dc2626; padding-bottom: 8px; margin-top: 0;">❌ Work Request Update</h2>
+          <p>Hi <strong>${clientName || 'Client'}</strong>,</p>
+          <p>Thank you for submitting your work request. Unfortunately, we are unable to process this request at this time.</p>
+          
+          <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 14px; border-radius: 6px; margin: 16px 0; font-size: 14px;">
+            <p style="margin: 0 0 6px 0; color: #991b1b;"><strong>Reason / Feedback from Admin:</strong></p>
+            <span style="color: #1e293b; white-space: pre-wrap;">${rejectionReason}</span>
+          </div>
+
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 14px; border-radius: 6px; margin: 16px 0; font-size: 14px;">
+            <p style="margin: 4px 0;"><strong>Request Title:</strong> ${workRequest.title || workRequest.type}</p>
+            <p style="margin: 4px 0;"><strong>Category:</strong> ${workRequest.category || 'N/A'}</p>
+            <p style="margin: 4px 0;"><strong>Budget:</strong> ₹${workRequest.budget ? workRequest.budget.toLocaleString('en-IN') : '0'}</p>
+          </div>
+
+          <p style="font-size: 14px; color: #475569;">You are welcome to submit a revised work request with updated details or scope.</p>
+
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${clientPortalUrl}" style="background-color: #0f1714; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; display: inline-block;">
+              🚀 Open Client Portal
+            </a>
+          </div>
+        </div>
+      `,
+    };
+    await transporter.sendMail(mailOptions);
+    console.log(`✉️ Rejection notification email sent successfully to ${clientEmail}`);
+  } catch (err) {
+    console.error('Failed to send client request rejection email:', err.message);
+  }
+};
+
 module.exports = {
   sendAdminNotification,
   sendAdminApprovalNotification,
   sendAdminRevisionNotification,
   sendAdminRejectionNotification,
+  sendClientRequestApprovalNotification,
+  sendClientRequestRejectionNotification,
+  sendClientDeliverableNotification,
 };
+
 
