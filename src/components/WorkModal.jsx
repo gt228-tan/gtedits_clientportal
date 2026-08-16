@@ -204,15 +204,15 @@ export default function WorkModal({ clientId, clientName, work, onClose, onAdvan
                       const sc      = wStatus.toLowerCase();
                       return (
                         <tr key={w.wid}>
-                          <td className="col-num">{i + 1}</td>
-                          <td className="col-desc">
+                          <td className="col-num" data-label="#">{i + 1}</td>
+                          <td className="col-desc" data-label="Description">
                             {w.desc}
                             {w.date && <><br /><small className="row-date">{formatDate(w.date)}</small></>}
                           </td>
-                          <td className="col-num">{q}</td>
-                          <td className="col-amt">₹{p.toLocaleString('en-IN')}</td>
-                          <td className="col-amt col-total">₹{lineTotal.toLocaleString('en-IN')}</td>
-                          <td className="col-status">
+                          <td className="col-num" data-label="Qty">{q}</td>
+                          <td className="col-amt" data-label="Price">₹{p.toLocaleString('en-IN')}</td>
+                          <td className="col-amt col-total" data-label="Total">₹{lineTotal.toLocaleString('en-IN')}</td>
+                          <td className="col-status" data-label="Status">
                             <select
                               className={`work-status-select s-${sc}`}
                               value={wStatus}
@@ -228,9 +228,9 @@ export default function WorkModal({ clientId, clientName, work, onClose, onAdvan
                               </span>
                             )}
                           </td>
-                          <td className="col-actions">
-                            <button className="btn-row-action edit" title="Edit" onClick={() => handleEdit(w.wid)}>✏️</button>
-                            <button className="btn-row-action del"  title="Delete" onClick={() => handleDelete(w.wid)}>🗑️</button>
+                          <td className="col-actions" data-label="Actions">
+                            <button className="btn-row-action edit" title="Edit" onClick={() => handleEdit(w.wid)}>✏️ Edit</button>
+                            <button className="btn-row-action del"  title="Delete" onClick={() => handleDelete(w.wid)}>🗑️ Delete</button>
                           </td>
                         </tr>
                       );

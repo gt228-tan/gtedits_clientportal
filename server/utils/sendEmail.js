@@ -11,80 +11,98 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendAdminNotification = async (workRequest) => {
-  const serverUrl = process.env.SERVER_URL || 'http://localhost:3001';
+  try {
+    const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER || 'gtbtbhay22@gmail.com';
+    if (!adminEmail) {
+      console.warn('⚠️ [sendEmail] ADMIN_EMAIL and EMAIL_USER missing. Admin notification NOT sent.');
+      return;
+    }
 
-  const formattedDeadline = workRequest.deadline
-    ? new Date(workRequest.deadline).toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-    : 'N/A';
+    const serverUrl = process.env.SERVER_URL || 'http://localhost:3001';
 
-  const gameRow = workRequest.category === 'Gaming' && workRequest.gameName
-    ? `<p><strong>Game Name:</strong> ${workRequest.gameName}</p>`
-    : '';
+    const formattedDeadline = workRequest.deadline
+      ? new Date(workRequest.deadline).toLocaleDateString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
+      : 'N/A';
 
-  const materialsRow = workRequest.materials
-    ? `<p><strong>Materials:</strong> <a href="${workRequest.materials}" target="_blank" style="color: #4f46e5;">${workRequest.materials}</a></p>`
-    : `<p><strong>Materials:</strong> None provided</p>`;
+    const gameRow = workRequest.category === 'Gaming' && workRequest.gameName
+      ? `<p><strong>Game Name:</strong> ${workRequest.gameName}</p>`
+      : '';
 
-  const remarksRow = workRequest.remarks
-    ? `<p><strong>Remarks:</strong> ${workRequest.remarks}</p>`
-    : `<p><strong>Remarks:</strong> None</p>`;
+    const materialsRow = workRequest.materials
+      ? `<p><strong>Materials:</strong> <a href="${workRequest.materials}" target="_blank" style="color: #4f46e5;">${workRequest.materials}</a></p>`
+      : `<p><strong>Materials:</strong> None provided</p>`;
 
-  const approveUrl = `${serverUrl}/api/work-requests/${workRequest._id}/action?status=Approved`;
-  const rejectUrl = `${serverUrl}/api/work-requests/${workRequest._id}/action?status=Rejected`;
+    const remarksRow = workRequest.remarks
+      ? `<p><strong>Remarks:</strong> ${workRequest.remarks}</p>`
+      : `<p><strong>Remarks:</strong> None</p>`;
 
-  const titleRow = workRequest.title
-    ? `<div style="background-color: #e0f2fe; border: 1px solid #bae6fd; padding: 12px 16px; border-radius: 6px; margin: 12px 0;">
-        <strong style="color: #0369a1; font-size: 14px;">📌 Request Title:</strong>
-        <span style="color: #0f1714; font-size: 16px; font-weight: bold; display: block; margin-top: 4px;">${workRequest.title}</span>
-       </div>`
-    : '';
+    const imageRow = workRequest.image
+      ? (workRequest.image.startsWith('http') || workRequest.image.startsWith('data:image'))
+        ? `<div style="margin: 12px 0;"><p><strong>Attached Reference Image:</strong></p><img src="${workRequest.image}" style="max-width: 100%; max-height: 300px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 4px;" alt="Reference Image" /></div>`
+        : `<p><strong>Attachment Image:</strong> Included</p>`
+      : '';
 
-  const mailOptions = {
-    from: `"GT Client Portal" <${process.env.EMAIL_USER}>`,
-    to: process.env.ADMIN_EMAIL,
-    subject: `🚨 New Work Request from ${workRequest.clientName || 'Client'}: ${workRequest.title ? `"${workRequest.title}"` : `${workRequest.category} - ${workRequest.type}`}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 24px; color: #333; background-color: #ffffff;">
-        <h2 style="color: #4f46e5; border-bottom: 2px solid #4f46e5; padding-bottom: 8px; margin-top: 0;">📝 New Work Request Received</h2>
-        
-        <p><strong>Client Name:</strong> ${workRequest.clientName || 'N/A'}</p>
-        <p><strong>Client ID:</strong> ${workRequest.clientId || 'N/A'}</p>
-        ${titleRow}
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;" />
+    const approveUrl = `${serverUrl}/api/work-requests/${workRequest._id}/action?status=Approved`;
+    const rejectUrl = `${serverUrl}/api/work-requests/${workRequest._id}/action?status=Rejected`;
 
-        <p><strong>Category:</strong> ${workRequest.category || 'N/A'}</p>
-        <p><strong>Type:</strong> ${workRequest.type || 'N/A'}</p>
-        ${gameRow}
-        <p><strong>Budget:</strong> ₹${workRequest.budget ? workRequest.budget.toLocaleString('en-IN') : '0'}</p>
-        <p><strong>Deadline:</strong> ${formattedDeadline}</p>
-        ${materialsRow}
-        ${remarksRow}
+    const titleRow = workRequest.title
+      ? `<div style="background-color: #e0f2fe; border: 1px solid #bae6fd; padding: 12px 16px; border-radius: 6px; margin: 12px 0;">
+          <strong style="color: #0369a1; font-size: 14px;">📌 Request Title:</strong>
+          <span style="color: #0f1714; font-size: 16px; font-weight: bold; display: block; margin-top: 4px;">${workRequest.title}</span>
+         </div>`
+      : '';
 
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-        
-        <div style="text-align: center; margin: 25px 0;">
-          <a href="${approveUrl}" 
-             style="background-color: #16a34a; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; display: inline-block; margin-right: 12px;">
-             ✅ Approve Request
-          </a>
-          <a href="${rejectUrl}" 
-             style="background-color: #dc2626; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; display: inline-block;">
-             ❌ Reject Request
-          </a>
+    const mailOptions = {
+      from: `"GT Client Portal" <${process.env.EMAIL_USER}>`,
+      to: adminEmail,
+      subject: `🚨 New Work Request from ${workRequest.clientName || 'Client'}: ${workRequest.title ? `"${workRequest.title}"` : `${workRequest.category} - ${workRequest.type}`}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 24px; color: #333; background-color: #ffffff;">
+          <h2 style="color: #4f46e5; border-bottom: 2px solid #4f46e5; padding-bottom: 8px; margin-top: 0;">📝 New Work Request Received</h2>
+          
+          <p><strong>Client Name:</strong> ${workRequest.clientName || 'N/A'}</p>
+          <p><strong>Client ID:</strong> ${workRequest.clientId || 'N/A'}</p>
+          ${titleRow}
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;" />
+
+          <p><strong>Category:</strong> ${workRequest.category || 'N/A'}</p>
+          <p><strong>Type:</strong> ${workRequest.type || 'N/A'}</p>
+          ${gameRow}
+          <p><strong>Budget:</strong> ₹${workRequest.budget ? workRequest.budget.toLocaleString('en-IN') : '0'}</p>
+          <p><strong>Deadline:</strong> ${formattedDeadline}</p>
+          ${materialsRow}
+          ${remarksRow}
+          ${imageRow}
+
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+          
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${approveUrl}" 
+               style="background-color: #16a34a; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; display: inline-block; margin-right: 12px;">
+               ✅ Approve Request
+            </a>
+            <a href="${rejectUrl}" 
+               style="background-color: #dc2626; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; display: inline-block;">
+               ❌ Reject Request
+            </a>
+          </div>
+
+          <p style="font-size: 12px; color: #888; text-align: center; margin-bottom: 0;">
+            Clicking a button above will immediately update the request status in your portal.
+          </p>
         </div>
+      `,
+    };
 
-        <p style="font-size: 12px; color: #888; text-align: center; margin-bottom: 0;">
-          Clicking a button above will immediately update the request status in your portal.
-        </p>
-      </div>
-    `,
-  };
-
-  await transporter.sendMail(mailOptions);
+    await transporter.sendMail(mailOptions);
+    console.log(`✉️ Admin notification email sent successfully to ${adminEmail} for work request "${workRequest._id || workRequest.title}"`);
+  } catch (err) {
+    console.error('❌ Failed to send admin email notification:', err.message);
+  }
 };
 
 /**

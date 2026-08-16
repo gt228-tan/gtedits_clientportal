@@ -155,31 +155,31 @@ export default function WorkRequestsPanel() {
                 const badge = STATUS_BADGE[r.status] || STATUS_BADGE.Pending;
                 return (
                   <tr key={r._id}>
-                    <td className="col-num">{i + 1}</td>
-                    <td>{r.clientName}</td>
-                    <td><strong style={{ color: '#0f1714' }}>{r.title || '—'}</strong></td>
-                    <td>
+                    <td className="col-num" data-label="#">{i + 1}</td>
+                    <td data-label="Client">{r.clientName}</td>
+                    <td data-label="Title"><strong style={{ color: '#0f1714' }}>{r.title || '—'}</strong></td>
+                    <td data-label="Category">
                       <span className={`wr-cat-chip ${r.category === 'Gaming' ? 'chip-gaming' : 'chip-other'}`}>
                         {r.category === 'Gaming' ? '🎮' : '🎬'} {r.category}
                       </span>
                     </td>
-                    <td>{r.type}</td>
-                    <td className="text-muted">{r.gameName || '—'}</td>
-                    <td>₹{Number(r.budget).toLocaleString('en-IN')}</td>
-                    <td>{new Date(r.deadline).toLocaleDateString('en-IN')}</td>
-                    <td>
+                    <td data-label="Type">{r.type}</td>
+                    <td className="text-muted" data-label="Game">{r.gameName || '—'}</td>
+                    <td data-label="Budget">₹{Number(r.budget).toLocaleString('en-IN')}</td>
+                    <td data-label="Deadline">{new Date(r.deadline).toLocaleDateString('en-IN')}</td>
+                    <td data-label="Status">
                       <span className={`wr-status-badge ${badge.cls}`}>
                         {badge.emoji} {r.status}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Actions">
                       <div className="wr-action-btns">
                         <button
                           className="wr-btn-action wr-btn-view"
                           onClick={() => { setSelected(r); setNote(r.adminNote || ''); }}
                           title="Review"
                         >
-                          👁
+                          👁 Review
                         </button>
                         {r.status !== 'Rejected' && (
                           <button
@@ -188,7 +188,7 @@ export default function WorkRequestsPanel() {
                             onClick={() => openRejectModal(r)}
                             title="Reject Request"
                           >
-                            ❌
+                            ❌ Reject
                           </button>
                         )}
                         <button
@@ -196,7 +196,7 @@ export default function WorkRequestsPanel() {
                           onClick={() => handleDelete(r._id)}
                           title="Delete"
                         >
-                          🗑️
+                          🗑️ Delete
                         </button>
                       </div>
                     </td>

@@ -307,7 +307,12 @@ export default function AdminDashboard() {
       {/* ── Sidebar ── */}
       <aside className="admin-sidebar">
         <div className="sidebar-logo">
-          <span>GT</span> {BRAND_NAME}
+          <div className="sidebar-brand">
+            <span>GT</span> {BRAND_NAME}
+          </div>
+          <button className="btn-logout-sidebar" onClick={logout} title="Sign Out">
+            🔒 Sign Out
+          </button>
         </div>
 
         <nav className="sidebar-nav">
