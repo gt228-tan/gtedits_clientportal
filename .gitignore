@@ -1,14 +1,16 @@
-# Dependencies
+
 node_modules
 server/node_modules
+backup
 
-# Environment & Secrets
+firebase.js
+
 .env
 .env.*
 *.env
 server/.env
 server/.env.*
 
-# Build & Output
+
 dist
-*.local
+*.local
