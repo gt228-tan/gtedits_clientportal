@@ -28,7 +28,7 @@ const firebaseConfig = {
   databaseURL: "https://client-tracker-b9331-default-rtdb.asia-southeast1.firebasedatabase.app/"
 };
 
-// Primary app (admin + client sessions)
+
 const app = initializeApp(firebaseConfig);
 export const db   = getDatabase(app);
 export const auth = getAuth(app);

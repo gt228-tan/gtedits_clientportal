@@ -1,6 +1,4 @@
-// ============================================================
-// firebase.js — Client Portal  (Email/Password auth)
-// ============================================================
+
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, onValue, push, remove, update, set, get }
@@ -24,18 +22,15 @@ const firebaseConfig = {
   databaseURL: "https://client-tracker-b9331-default-rtdb.asia-southeast1.firebasedatabase.app/"
 };
 
-// ── Primary app (used for admin + client sessions) ────────
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 
-// ── Secondary app — used ONLY to create new client accounts
-// without signing out the currently-logged-in admin.
+
 const secondaryApp = initializeApp(firebaseConfig, "Secondary");
 const secondaryAuth = getAuth(secondaryApp);
 
-// ── authReady: resolves once Firebase tells us the current
-// auth state (user object if already signed in, null if not).
+
 const authReady = new Promise((resolve) => {
   const unsub = onAuthStateChanged(auth, (user) => {
     unsub(); // fire only once
