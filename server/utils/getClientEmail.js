@@ -2,13 +2,12 @@ const ClientEmail = require('../models/ClientEmail');
 
 const DATABASE_URL = process.env.FIREBASE_DB_URL || "https://client-tracker-b9331-default-rtdb.asia-southeast1.firebasedatabase.app/";
 
-// ── Firebase Admin SDK for authenticated RTDB reads ──────────
 let adminDb = null;
 function getAdminDb() {
   if (adminDb) return adminDb;
   try {
     const admin = require('firebase-admin');
-    // Ensure Firebase Admin is initialized (auth.js may already have done this)
+    
     if (!admin.apps.length) {
       admin.initializeApp({
         credential: admin.credential.applicationDefault(),
@@ -32,12 +31,9 @@ function isRealEmail(email) {
   return trimmed.includes('@');
 }
 
-/**
- * Read a single client record from Firebase RTDB.
- * Tries Admin SDK first, falls back to unauthenticated REST.
- */
+
 async function readClientFromRTDB(clientId) {
-  // Try Firebase Admin SDK (authenticated)
+  
   const db = getAdminDb();
   if (db) {
     try {
@@ -63,10 +59,7 @@ async function readClientFromRTDB(clientId) {
   return null;
 }
 
-/**
- * Read ALL client records from Firebase RTDB.
- * Tries Admin SDK first, falls back to unauthenticated REST.
- */
+
 async function readAllClientsFromRTDB() {
   const db = getAdminDb();
   if (db) {
@@ -78,7 +71,7 @@ async function readAllClientsFromRTDB() {
     }
   }
 
-  // Fallback: unauthenticated REST
+
   try {
     const url = `${DATABASE_URL.replace(/\/+$/, '')}/clients.json`;
     const res = await fetch(url);
@@ -96,7 +89,6 @@ async function readAllClientsFromRTDB() {
 async function getClientContactEmail(clientId, clientFirebaseUid, clientName = '') {
   console.log(`[EmailLookup] Starting lookup for clientId="${clientId}", uid="${clientFirebaseUid}", name="${clientName}"`);
 
-  // 1. Try MongoDB ClientEmail collection (fastest & most reliable)
   try {
     const query = [];
     if (clientId)   query.push({ clientId });
@@ -116,7 +108,7 @@ async function getClientContactEmail(clientId, clientFirebaseUid, clientName = '
     console.warn(`[EmailLookup] MongoDB search error:`, err.message);
   }
 
-  // 2. Direct RTDB lookup by clientId (using Admin SDK with REST fallback)
+
   if (clientId) {
     try {
       const c = await readClientFromRTDB(clientId);
@@ -142,7 +134,6 @@ async function getClientContactEmail(clientId, clientFirebaseUid, clientName = '
     }
   }
 
-  // 3. Fetch all clients from RTDB to find matching client record by key, UID, or name
   try {
     const allClients = await readAllClientsFromRTDB();
     if (allClients) {
@@ -157,7 +148,7 @@ async function getClientContactEmail(clientId, clientFirebaseUid, clientName = '
           if (isRealEmail(customEmail)) {
             const email = customEmail.trim();
             console.log(`[EmailLookup] ✅ Found notification email "${email}" from RTDB client record "${c.name}" (key: ${key})`);
-            // Sync to MongoDB for future queries
+           
             ClientEmail.findOneAndUpdate(
               { clientId: key },
               { clientId: key, clientName: c.name || clientName, contactEmail: email },
@@ -181,4 +172,5 @@ async function getClientContactEmail(clientId, clientFirebaseUid, clientName = '
   return '';
 }
 
-module.exports = { getClientContactEmail, isRealEmail };
+module.exports = { getClientContactEmail, isRealEmail, readClientFromRTDB };
+

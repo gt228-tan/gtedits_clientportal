@@ -640,6 +640,18 @@ a:hover {
   background: #e2e8f0;
 }
 
+.btn-reminder {
+  background: #fffbebf5;
+  color: #d97706;
+  border: 1px solid #fef3c7;
+}
+
+.btn-reminder:hover {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+
 .btn-setup {
   background: #fef3c7;
   color: #b45309;
@@ -2606,6 +2618,16 @@ a:hover {
   color: #d97706;
   border: 1px solid rgba(245, 158, 11, 0.4);
 }
+.dlv-btn--payment-reminder {
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+}
+.dlv-btn--payment-reminder:hover {
+  background: rgba(99, 102, 241, 0.25);
+  color: #a5b4fc;
+}
+
 
 /* ── Deliverable Section ───────────────────────────────────── */
 .dlv-section {
@@ -3349,7 +3371,6 @@ a:hover {
   overflow: hidden;
 }
 
-/* ── Prevent Right-Click Save & Image Drag for Deliverables ── */
 .dlv-preview-image,
 .dlv-preview-video,
 .dlv-preview-body,

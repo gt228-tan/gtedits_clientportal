@@ -44,7 +44,12 @@ export async function fetchRevisions(projectId, token) {
   return apiRequest('GET', `/projects/${projectId}/revisions`, token);
 }
 
-// ── Client: list own projects ─────────────────────────────
+
+export async function sendClientPaymentReminder(clientId, token, clientData) {
+  return apiRequest('POST', `/clients/${clientId}/send-payment-reminder`, token, clientData ? { clientData } : undefined);
+}
+
 export async function fetchClientProjects(token) {
   return apiRequest('GET', '/projects/client/mine', token);
 }
+

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { showToast } from './Toast';
-import { deleteDeliverable, toggleDeliverableDownload } from '../api/deliverables';
+import { deleteDeliverable, toggleDeliverableDownload, sendPaymentReminder } from '../api/deliverables';
 
 const STATUS_CONFIG = {
   awaiting_approval:  { label: 'Awaiting Client Approval', color: 'amber',  icon: '🟡' },
@@ -32,6 +32,7 @@ export default function DeliverableCard({
 }) {
   const [deleting, setDeleting] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [sendingReminder, setSendingReminder] = useState(false);
   const [allowed, setAllowed]   = useState(deliverable.allowDownload !== false);
   const cfg = STATUS_CONFIG[deliverable.status] || STATUS_CONFIG.draft;
 
@@ -61,6 +62,20 @@ export default function DeliverableCard({
       setToggling(false);
     }
   };
+
+  const handlePaymentReminder = async () => {
+    if (!confirm(`Send payment reminder email with remaining payment invoice attachment to client for "${deliverable.name}"?`)) return;
+    setSendingReminder(true);
+    try {
+      const res = await sendPaymentReminder(deliverable._id, token);
+      showToast(`📧 ${res.message || 'Payment reminder sent successfully!'}`);
+    } catch (err) {
+      showToast(`❌ ${err.message}`, 'warn');
+    } finally {
+      setSendingReminder(false);
+    }
+  };
+
 
   return (
     <div className={`dlv-card ${isSuperseded ? 'dlv-card--superseded' : ''}`}>
@@ -152,6 +167,8 @@ export default function DeliverableCard({
             {toggling ? '…' : allowed ? '🔓 Download Allowed' : '🔒 Download Blocked'}
           </button>
         )}
+
+
 
         {isAdmin && (
           <button

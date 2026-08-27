@@ -60,6 +60,12 @@ export async function toggleDeliverableDownload(deliverableId, allowDownload, to
   return apiRequest('PATCH', `/deliverables/${deliverableId}/toggle-download`, token, { allowDownload });
 }
 
+// ── Admin: Send payment reminder email with invoice attachment ──
+export async function sendPaymentReminder(deliverableId, token, pdfBase64) {
+  return apiRequest('POST', `/deliverables/${deliverableId}/send-payment-reminder`, token, { pdfBase64 });
+}
+
+
 // ── Client: List deliverables for own project ─────────────
 export async function fetchClientDeliverables(projectId, token) {
   return apiRequest('GET', `/client/projects/${projectId}/deliverables`, token);

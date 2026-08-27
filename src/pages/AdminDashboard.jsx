@@ -15,7 +15,8 @@ import ClientPreviewModal from '../components/ClientPreviewModal';
 import WorkRequestsPanel from '../components/WorkRequestsPanel';
 import ProjectDeliverablesSection from '../components/ProjectDeliverablesSection';
 import DeliverablePreviewModal from '../components/DeliverablePreviewModal';
-import { fetchProjects, createProject, deleteProject, updateProjectStatus, fetchRevisions } from '../api/projects';
+import { fetchProjects, createProject, deleteProject, updateProjectStatus, fetchRevisions, sendClientPaymentReminder } from '../api/projects';
+
 import { API_BASE } from '../api/config';
 
 const PROJECT_STATUS_LABELS = {
@@ -42,7 +43,9 @@ export default function AdminDashboard() {
   const [newName, setNewName] = useState('');
   const [newNotificationEmail, setNewNotificationEmail] = useState('');
   const [addBusy, setAddBusy] = useState(false);
+  const [sendingReminderId, setSendingReminderId] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');  // 'dashboard' | 'requests' | 'projects'
+
   const [pendingCount, setPendingCount] = useState(0);
 
   // ── Projects state ─────────────────────────────────────────
@@ -285,7 +288,23 @@ export default function AdminDashboard() {
     }
   };
 
-  // ── Change status ──────────────────────────────────────────
+
+
+  const handleSendPaymentReminder = async (clientId, clientName, clientObj) => {
+    if (!confirm(`Send payment reminder email with remaining payment invoice attachment to ${clientName}?`)) return;
+    setSendingReminderId(clientId);
+    try {
+      const token = await getToken();
+      const res = await sendClientPaymentReminder(clientId, token, clientObj || clients[clientId]);
+      showToast(`📧 ${res.message || 'Payment reminder sent successfully!'}`);
+    } catch (err) {
+      showToast(`❌ ${err.message}`, 'warn');
+    } finally {
+      setSendingReminderId(null);
+    }
+  };
+
+
   const handleStatusChange = async (id, status) => {
     try {
       const token = await getToken();
@@ -347,9 +366,9 @@ export default function AdminDashboard() {
         </nav>
       </aside>
 
-      {/* ── Main ── */}
+      
       <main className="admin-main">
-        {/* Top bar */}
+        
         <div className="admin-topbar">
           <div className="admin-topbar-inner">
             <div>
@@ -449,7 +468,10 @@ export default function AdminDashboard() {
                       onReset={() => handleResetPassword(id, c.name)}
                       onUpdateEmail={() => handleUpdateNotificationEmail(id, c.notificationEmail || c.contactEmail)}
                       onDelete={() => handleDeleteClient(id)}
+                      onSendReminder={() => handleSendPaymentReminder(id, c.name, c)}
+                      isSendingReminder={sendingReminderId === id}
                       onCreateProject={() => {
+
                         setCreateForClient({
                           firebaseClientId: id,
                           clientFirebaseUid: c.uid || '',
@@ -813,7 +835,7 @@ function ProjectDetailView({ project, getToken, onDelete, onStatusChange, status
 }
 
 // ── Client Card ────────────────────────────────────────────
-function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, onUpdateEmail, onPreview, onDelete, onCreateProject }) {
+function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, onUpdateEmail, onPreview, onDelete, onCreateProject, onSendReminder, isSendingReminder }) {
   const work = Object.values(client.work || {});
   let paidAmt = 0, pendingAmt = 0;
   work.forEach(w => {
@@ -875,9 +897,13 @@ function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, 
         )}
         <button className="clean-btn btn-soft" onClick={onPreview} title="Preview Portal">👁 View</button>
         <button className="clean-btn btn-soft" onClick={onCreateProject} title="Create Project">📁 Project</button>
+        <button className="clean-btn btn-soft btn-reminder" onClick={onSendReminder} disabled={isSendingReminder} title="Send Payment Reminder Email with Invoice Attachment">
+          {isSendingReminder ? '⏳ Reminder' : '💳 Reminder'}
+        </button>
         <button className="clean-btn btn-primary" onClick={onOpenWork}>📋 Work</button>
         <button className="clean-btn btn-del" onClick={onDelete} title="Delete">🗑️</button>
       </div>
     </div>
   );
 }
+

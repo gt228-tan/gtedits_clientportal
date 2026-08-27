@@ -325,6 +325,87 @@ const sendClientRequestRejectionNotification = async ({ clientEmail, clientName,
   }
 };
 
+
+const sendClientPaymentReminderNotification = async ({
+  clientEmail,
+  clientName,
+  project,
+  grandTotal = 0,
+  pdfBuffer,
+}) => {
+  if (!clientEmail || clientEmail.includes('gtportal.com')) {
+    console.warn(`[sendEmail] Skipping payment reminder email for "${clientName}": email is empty or generated login email (${clientEmail})`);
+    return { success: false, reason: 'Invalid or missing client email address.' };
+  }
+
+  try {
+    const clientPortalUrl = process.env.CLIENT_URL || 'https://gtedits-clientportal.vercel.app';
+    const formattedTotal = `Rs. ${Number(grandTotal).toLocaleString('en-IN')}`;
+    const safeClientName = clientName || 'Valued Client';
+    const filename = `Invoice_${safeClientName.replace(/\s+/g, '_')}.pdf`;
+
+    const mailOptions = {
+      from: `"GT Client Portal" <${process.env.EMAIL_USER}>`,
+      to: clientEmail,
+      subject: `💳 Payment Reminder: Outstanding Balance of GT Edits`,
+      html: `
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 620px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 10px; padding: 28px; color: #1e293b; background-color: #ffffff;">
+          <div style="text-align: center; padding-bottom: 20px; border-bottom: 2px solid #f59e0b;">
+            <h2 style="color: #d97706; margin: 0; font-size: 22px;">💳 Payment Reminder</h2>
+            <p style="color: #64748b; margin-top: 4px; font-size: 14px;">GT Edits Client Portal</p>
+          </div>
+
+          <div style="margin-top: 24px;">
+            <p style="font-size: 15px; line-height: 1.6;">Dear <strong>${safeClientName}</strong>,</p>
+            <p style="font-size: 15px; line-height: 1.6; color: #334155;">
+              We hope you are doing well! This is a friendly reminder regarding the remaining payment.
+            </p>
+
+            <div style="background-color: #fffbebf5; border: 1px solid #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 0; color: #92400e; font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Summary of Outstanding Amount</p>
+              <p style="margin: 6px 0 0 0; color: #78350f; font-size: 24px; font-weight: bold;">${formattedTotal}</p>
+            </div>
+
+            <p style="font-size: 14px; line-height: 1.6; color: #475569;">
+              We have attached your itemized <strong>Remaining Payment Invoice PDF</strong> to this email for your reference.
+            </p>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${clientPortalUrl}" style="background-color: #f59e0b; color: #ffffff; padding: 13px 28px; text-decoration: none; border-radius: 7px; font-weight: bold; font-size: 15px; display: inline-block; box-shadow: 0 4px 6px -1px rgba(245, 158, 11, 0.3);">
+                🚀 View Details in Client Portal
+              </a>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 25px 0;" />
+
+            <p style="font-size: 13px; color: #64748b; line-height: 1.5; margin: 0;">
+              If you have already processed this payment, please disregard this notice or feel free to reach out to us with any questions.
+            </p>
+            <p style="font-size: 14px; font-weight: bold; color: #1e293b; margin-top: 16px;">
+              Best regards,<br/>
+              <span style="color: #4f46e5;">GT Edits</span>
+            </p>
+          </div>
+        </div>
+      `,
+      attachments: pdfBuffer ? [
+        {
+          filename,
+          content: pdfBuffer,
+          contentType: 'application/pdf',
+        }
+      ] : [],
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`✉️ Payment reminder email sent successfully to ${clientEmail}`);
+    return { success: true, email: clientEmail };
+  } catch (err) {
+    console.error('Failed to send payment reminder email:', err.message);
+    throw err;
+  }
+};
+
 module.exports = {
   sendAdminNotification,
   sendAdminApprovalNotification,
@@ -333,6 +414,8 @@ module.exports = {
   sendClientRequestApprovalNotification,
   sendClientRequestRejectionNotification,
   sendClientDeliverableNotification,
+  sendClientPaymentReminderNotification,
 };
+
 
 

@@ -3,12 +3,10 @@ const router   = express.Router();
 const Project  = require('../models/Project');
 const Deliverable = require('../models/Deliverable');
 const { requireAuth } = require('../middleware/auth');
+const { getClientContactEmail, isRealEmail, readClientFromRTDB } = require('../utils/getClientEmail');
+const { sendClientPaymentReminderNotification } = require('../utils/sendEmail');
+const { generateInvoicePdfBuffer } = require('../utils/generateInvoicePdf');
 
-// ─────────────────────────────────────────────────────────────
-// GET /api/projects/client/mine
-// Client: list their own projects
-// MUST be declared before /:projectId to avoid route collision
-// ─────────────────────────────────────────────────────────────
 router.get('/client/mine', requireAuth('client'), async (req, res) => {
   try {
     const projects = await Project.find({ clientFirebaseUid: req.uid }).sort({ createdAt: -1 });
@@ -18,10 +16,7 @@ router.get('/client/mine', requireAuth('client'), async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// POST /api/projects
-// Admin: create a new project for a client
-// ─────────────────────────────────────────────────────────────
+
 router.post('/', requireAuth('admin'), async (req, res) => {
   try {
     const { firebaseClientId, clientFirebaseUid, clientName, title, description } = req.body;
@@ -48,10 +43,7 @@ router.post('/', requireAuth('admin'), async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// GET /api/projects
-// Admin: list all projects (optionally filter by ?clientUid=)
-// ─────────────────────────────────────────────────────────────
+
 router.get('/', requireAuth('admin'), async (req, res) => {
   try {
     const filter = {};
@@ -143,6 +135,102 @@ router.delete('/:projectId', requireAuth('admin'), async (req, res) => {
     res.json({ message: 'Project deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/projects/clients/:clientId/send-payment-reminder
+// Admin: send payment reminder email directly to a client
+// ─────────────────────────────────────────────────────────────
+router.post('/clients/:clientId/send-payment-reminder', requireAuth('admin'), async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    if (!clientId) return res.status(400).json({ error: 'clientId is required' });
+
+    let clientData = req.body?.clientData || null;
+
+    if (!clientData) {
+      clientData = await readClientFromRTDB(clientId);
+    }
+
+    if (!clientData) {
+      const ClientEmail = require('../models/ClientEmail');
+      const mongoRecord = await ClientEmail.findOne({ clientId });
+      const mongoProj   = await Project.findOne({ firebaseClientId: clientId });
+      if (mongoRecord || mongoProj) {
+        clientData = {
+          name: mongoRecord?.clientName || mongoProj?.clientName || 'Client',
+          uid: mongoProj?.clientFirebaseUid || '',
+          contactEmail: mongoRecord?.contactEmail || mongoProj?.clientEmail || '',
+          work: {},
+        };
+      }
+    }
+
+    if (!clientData) {
+      return res.status(404).json({ error: 'Client record not found. Please ensure client details exist.' });
+    }
+
+    const clientName = clientData.name || clientData.clientName || 'Client';
+    const clientUid  = clientData.uid || '';
+
+    const clientEmail = await getClientContactEmail(clientId, clientUid, clientName);
+    if (!clientEmail || !isRealEmail(clientEmail)) {
+      return res.status(400).json({ error: `Client "${clientName}" does not have a valid contact email configured.` });
+    }
+
+    const workData = clientData.work || {};
+
+    let grandTotal = 0;
+    const remainingItems = Object.values(workData).filter(w => (w.status || 'Pending') !== 'Paid');
+    remainingItems.forEach(w => {
+      const qty       = Number(w.qty || 1);
+      const rate      = Number(w.price || w.amt || 0);
+      const lineTotal = qty * rate;
+      const status    = w.status || 'Pending';
+      const advAmt    = Number(w.advance || 0);
+      const dueAmt    = status === 'Pending' ? lineTotal : status === 'Advance' ? Math.max(0, lineTotal - advAmt) : 0;
+      grandTotal += dueAmt;
+    });
+
+    let pdfBuffer = null;
+    if (req.body.pdfBase64) {
+      try {
+        pdfBuffer = Buffer.from(req.body.pdfBase64.replace(/^data:application\/pdf;base64,/, ''), 'base64');
+      } catch (err) {
+        console.warn('Failed to parse pdfBase64 from payload:', err.message);
+      }
+    }
+
+    if (!pdfBuffer) {
+      pdfBuffer = await generateInvoicePdfBuffer({
+        clientName,
+        work: workData,
+        brandName: 'GT Edits',
+      });
+    }
+
+    const projectObj = { title: 'GT Edits Work Items' };
+
+    const result = await sendClientPaymentReminderNotification({
+      clientEmail,
+      clientName,
+      project: projectObj,
+      grandTotal,
+      pdfBuffer,
+    });
+
+    if (result && result.success === false) {
+      return res.status(400).json({ error: result.reason || 'Failed to send payment reminder email.' });
+    }
+
+    res.json({
+      message: `Payment reminder email with invoice attachment sent successfully to ${clientEmail}!`,
+      clientEmail,
+    });
+  } catch (err) {
+    console.error('Error sending client payment reminder:', err);
+    res.status(500).json({ error: err.message || 'Failed to send payment reminder email' });
   }
 });
 

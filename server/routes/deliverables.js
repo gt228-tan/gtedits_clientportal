@@ -7,8 +7,10 @@ const Deliverable = require('../models/Deliverable');
 const RevisionRequest = require('../models/RevisionRequest');
 const { requireAuth } = require('../middleware/auth');
 const { getDeliverablesBucket } = require('../config/gridfs');
-const { sendClientDeliverableNotification } = require('../utils/sendEmail');
-const { getClientContactEmail } = require('../utils/getClientEmail');
+const { sendClientDeliverableNotification, sendClientPaymentReminderNotification } = require('../utils/sendEmail');
+const { getClientContactEmail, isRealEmail, readClientFromRTDB } = require('../utils/getClientEmail');
+const { generateInvoicePdfBuffer } = require('../utils/generateInvoicePdf');
+
 
 // ── Max file size: 50MB ─────────────────────────────────────
 const MAX_SIZE = 50 * 1024 * 1024;
@@ -392,6 +394,183 @@ router.patch('/deliverables/:deliverableId/toggle-download', requireAuth('admin'
     res.status(500).json({ error: err.message });
   }
 });
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/deliverables/:deliverableId/send-payment-reminder
+// Admin: send payment reminder email with remaining payment invoice attachment
+// ─────────────────────────────────────────────────────────────
+router.post('/deliverables/:deliverableId/send-payment-reminder', requireAuth('admin'), async (req, res) => {
+  try {
+    const deliverable = await Deliverable.findById(req.params.deliverableId);
+    if (!deliverable) return res.status(404).json({ error: 'Deliverable not found' });
+
+    const project = await Project.findById(deliverable.projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    // Fetch client contact email
+    const clientEmail = await getClientContactEmail(project.firebaseClientId, project.clientFirebaseUid, project.clientName);
+    if (!clientEmail || !isRealEmail(clientEmail)) {
+      return res.status(400).json({ error: `Client "${project.clientName}" does not have a valid contact email configured.` });
+    }
+
+    // Read client data from Firebase RTDB
+    const clientData = await readClientFromRTDB(project.firebaseClientId);
+    const workData = clientData?.work || {};
+
+    // Calculate grand total of remaining items
+    let grandTotal = 0;
+    const remainingItems = Object.values(workData).filter(w => (w.status || 'Pending') !== 'Paid');
+    remainingItems.forEach(w => {
+      const qty = Number(w.qty || 1);
+      const rate = Number(w.price || w.amt || 0);
+      const lineTotal = qty * rate;
+      const status = w.status || 'Pending';
+      const advAmt = Number(w.advance || 0);
+      const dueAmt = status === 'Pending' ? lineTotal : status === 'Advance' ? Math.max(0, lineTotal - advAmt) : 0;
+      grandTotal += dueAmt;
+    });
+
+    let pdfBuffer = null;
+    if (req.body.pdfBase64) {
+      try {
+        pdfBuffer = Buffer.from(req.body.pdfBase64.replace(/^data:application\/pdf;base64,/, ''), 'base64');
+      } catch (err) {
+        console.warn('Failed to parse pdfBase64 from payload, falling back to server generation:', err.message);
+      }
+    }
+
+    if (!pdfBuffer) {
+      pdfBuffer = await generateInvoicePdfBuffer({
+        clientName: project.clientName,
+        work: workData,
+        brandName: 'GT Edits',
+      });
+    }
+
+    const result = await sendClientPaymentReminderNotification({
+      clientEmail,
+      clientName: project.clientName,
+      project,
+      grandTotal,
+      pdfBuffer,
+    });
+
+    if (result && result.success === false) {
+      return res.status(400).json({ error: result.reason || 'Failed to send payment reminder email.' });
+    }
+
+    res.json({
+      message: `Payment reminder email with invoice attachment sent successfully to ${clientEmail}!`,
+      clientEmail,
+    });
+  } catch (err) {
+    console.error('Error sending payment reminder:', err);
+    res.status(500).json({ error: err.message || 'Failed to send payment reminder email' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/clients/:clientId/send-payment-reminder
+// Admin: send payment reminder email directly to a client from dashboard
+// ─────────────────────────────────────────────────────────────
+router.post('/clients/:clientId/send-payment-reminder', requireAuth('admin'), async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    if (!clientId) return res.status(400).json({ error: 'clientId is required' });
+
+    // Read client record: payload > RTDB > Mongo
+    let clientData = req.body?.clientData || null;
+
+    if (!clientData) {
+      clientData = await readClientFromRTDB(clientId);
+    }
+
+    if (!clientData) {
+      const ClientEmail = require('../models/ClientEmail');
+      const mongoRecord = await ClientEmail.findOne({ clientId });
+      const mongoProj   = await Project.findOne({ firebaseClientId: clientId });
+      if (mongoRecord || mongoProj) {
+        clientData = {
+          name: mongoRecord?.clientName || mongoProj?.clientName || 'Client',
+          uid: mongoProj?.clientFirebaseUid || '',
+          contactEmail: mongoRecord?.contactEmail || mongoProj?.clientEmail || '',
+          work: {},
+        };
+      }
+    }
+
+    if (!clientData) {
+      return res.status(404).json({ error: 'Client record not found. Please ensure client details exist.' });
+    }
+
+    const clientName = clientData.name || clientData.clientName || 'Client';
+    const clientUid  = clientData.uid || '';
+
+    // Resolve contact email
+    const clientEmail = await getClientContactEmail(clientId, clientUid, clientName);
+    if (!clientEmail || !isRealEmail(clientEmail)) {
+      return res.status(400).json({ error: `Client "${clientName}" does not have a valid contact email configured.` });
+    }
+
+    const workData = clientData.work || {};
+
+    // Calculate grand total of remaining unpaid/advance items
+    let grandTotal = 0;
+    const remainingItems = Object.values(workData).filter(w => (w.status || 'Pending') !== 'Paid');
+    remainingItems.forEach(w => {
+      const qty       = Number(w.qty || 1);
+      const rate      = Number(w.price || w.amt || 0);
+      const lineTotal = qty * rate;
+      const status    = w.status || 'Pending';
+      const advAmt    = Number(w.advance || 0);
+      const dueAmt    = status === 'Pending' ? lineTotal : status === 'Advance' ? Math.max(0, lineTotal - advAmt) : 0;
+      grandTotal += dueAmt;
+    });
+
+    let pdfBuffer = null;
+    if (req.body.pdfBase64) {
+      try {
+        pdfBuffer = Buffer.from(req.body.pdfBase64.replace(/^data:application\/pdf;base64,/, ''), 'base64');
+      } catch (err) {
+        console.warn('Failed to parse pdfBase64 from payload, falling back to server generation:', err.message);
+      }
+    }
+
+    if (!pdfBuffer) {
+      pdfBuffer = await generateInvoicePdfBuffer({
+        clientName,
+        work: workData,
+        brandName: 'GT Edits',
+      });
+    }
+
+    const projectObj = {
+      title: 'GT Edits Work Items',
+    };
+
+    const result = await sendClientPaymentReminderNotification({
+      clientEmail,
+      clientName,
+      project: projectObj,
+      grandTotal,
+      pdfBuffer,
+    });
+
+    if (result && result.success === false) {
+      return res.status(400).json({ error: result.reason || 'Failed to send payment reminder email.' });
+    }
+
+    res.json({
+      message: `Payment reminder email with invoice attachment sent successfully to ${clientEmail}!`,
+      clientEmail,
+    });
+  } catch (err) {
+    console.error('Error sending client payment reminder:', err);
+    res.status(500).json({ error: err.message || 'Failed to send payment reminder email' });
+  }
+});
+
+
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/client/projects/:projectId/deliverables

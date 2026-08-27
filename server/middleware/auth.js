@@ -51,9 +51,7 @@ function requireAuth(role) {
       } catch (verifyErr) {
         // If Firebase Admin credentials are not configured (local dev without
         // GOOGLE_APPLICATION_CREDENTIALS), fall back to a lightweight JWT
-        // decode so we at minimum get the uid/email.  This is a dev-only
-        // escape-hatch — in production proper credentials should be set.
-        console.warn('[auth] Firebase Admin verify failed, using decode fallback:', verifyErr.code);
+        // decode so we at minimum get the uid/email.
         decoded = await verifyTokenFallback(token);
       }
 
