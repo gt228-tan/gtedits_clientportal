@@ -37,12 +37,17 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'gtbtbhay22@gmail.com';
  */
 function requireAuth(role) {
   return async (req, res, next) => {
+    let token = '';
     const header = req.headers['authorization'] || '';
-    if (!header.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Missing auth token' });
+    if (header.startsWith('Bearer ')) {
+      token = header.slice(7);
+    } else if (req.query && (req.query.token || req.query.auth)) {
+      token = req.query.token || req.query.auth;
     }
 
-    const token = header.slice(7);
+    if (!token) {
+      return res.status(401).json({ error: 'Missing auth token' });
+    }
     try {
       let decoded;
       try {

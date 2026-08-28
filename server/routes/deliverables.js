@@ -396,10 +396,10 @@ router.patch('/deliverables/:deliverableId/toggle-download', requireAuth('admin'
 });
 
 // ─────────────────────────────────────────────────────────────
-// POST /api/deliverables/:deliverableId/send-payment-reminder
+// ALL /api/deliverables/:deliverableId/send-payment-reminder (supports GET and POST)
 // Admin: send payment reminder email with remaining payment invoice attachment
 // ─────────────────────────────────────────────────────────────
-router.post('/deliverables/:deliverableId/send-payment-reminder', requireAuth('admin'), async (req, res) => {
+router.all('/deliverables/:deliverableId/send-payment-reminder', requireAuth('admin'), async (req, res) => {
   try {
     const deliverable = await Deliverable.findById(req.params.deliverableId);
     if (!deliverable) return res.status(404).json({ error: 'Deliverable not found' });
@@ -470,10 +470,10 @@ router.post('/deliverables/:deliverableId/send-payment-reminder', requireAuth('a
 });
 
 // ─────────────────────────────────────────────────────────────
-// POST /api/clients/:clientId/send-payment-reminder
+// ALL /api/clients/:clientId/send-payment-reminder (supports GET and POST)
 // Admin: send payment reminder email directly to a client from dashboard
 // ─────────────────────────────────────────────────────────────
-router.post('/clients/:clientId/send-payment-reminder', requireAuth('admin'), async (req, res) => {
+router.all('/clients/:clientId/send-payment-reminder', requireAuth('admin'), async (req, res) => {
   try {
     const { clientId } = req.params;
     if (!clientId) return res.status(400).json({ error: 'clientId is required' });

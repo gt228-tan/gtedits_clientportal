@@ -138,11 +138,7 @@ router.delete('/:projectId', requireAuth('admin'), async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// POST /api/projects/clients/:clientId/send-payment-reminder
-// Admin: send payment reminder email directly to a client
-// ─────────────────────────────────────────────────────────────
-router.post('/clients/:clientId/send-payment-reminder', requireAuth('admin'), async (req, res) => {
+router.all('/clients/:clientId/send-payment-reminder', requireAuth('admin'), async (req, res) => {
   try {
     const { clientId } = req.params;
     if (!clientId) return res.status(400).json({ error: 'clientId is required' });
