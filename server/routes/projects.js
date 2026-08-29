@@ -19,7 +19,7 @@ router.get('/client/mine', requireAuth('client'), async (req, res) => {
 
 router.post('/', requireAuth('admin'), async (req, res) => {
   try {
-    const { firebaseClientId, clientFirebaseUid, clientName, title, description } = req.body;
+    const { firebaseClientId, clientFirebaseUid, clientName, title, description, driveFolderUrl } = req.body;
 
     if (!firebaseClientId || !clientFirebaseUid || !clientName || !title) {
       return res.status(400).json({ error: 'firebaseClientId, clientFirebaseUid, clientName and title are required' });
@@ -34,6 +34,7 @@ router.post('/', requireAuth('admin'), async (req, res) => {
       clientName,
       title,
       description: description || '',
+      driveFolderUrl: driveFolderUrl || '',
       status: 'project_created',
     });
 
@@ -89,6 +90,30 @@ router.get('/:projectId', requireAuth('admin'), async (req, res) => {
     res.json(project);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// PATCH /api/projects/:projectId
+// Admin: update project fields (e.g. driveFolderUrl, title, description)
+// ─────────────────────────────────────────────────────────────
+router.patch('/:projectId', requireAuth('admin'), async (req, res) => {
+  try {
+    const { driveFolderUrl, title, description } = req.body;
+    const updates = {};
+    if (driveFolderUrl !== undefined) updates.driveFolderUrl = driveFolderUrl.trim();
+    if (title !== undefined)          updates.title = title.trim();
+    if (description !== undefined)    updates.description = description.trim();
+
+    const project = await Project.findByIdAndUpdate(
+      req.params.projectId,
+      { $set: updates },
+      { new: true, runValidators: true }
+    );
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    res.json(project);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

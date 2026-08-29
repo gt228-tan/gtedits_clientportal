@@ -20,19 +20,42 @@ async function apiRequest(method, path, token, body) {
   return res.json();
 }
 
-// ── Admin: Upload file deliverable ─────────────────────────
-export async function uploadFileDeliverable(projectId, formData, token) {
-  const headers = { Authorization: `Bearer ${token}` };
-  const res = await fetch(`${API}/projects/${projectId}/deliverables/file`, {
-    method: 'POST',
-    headers,
-    body: formData, // FormData with 'file', 'name', 'description'
+// ── Admin: Upload file deliverable (Direct Google Drive Upload with progress) ──
+export async function uploadFileDeliverable(projectId, formData, token, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API}/projects/${projectId}/deliverables/file`);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          onProgress(percent);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          resolve({ message: 'Uploaded successfully' });
+        }
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText);
+          reject(new Error(err.error || xhr.statusText));
+        } catch {
+          reject(new Error(xhr.statusText || 'Upload failed'));
+        }
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network upload error'));
+    xhr.send(formData);
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || res.statusText);
-  }
-  return res.json();
 }
 
 // ── Admin: Add link deliverable ────────────────────────────

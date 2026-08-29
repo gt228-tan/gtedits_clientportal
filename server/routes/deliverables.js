@@ -12,19 +12,30 @@ const { getClientContactEmail, isRealEmail, readClientFromRTDB } = require('../u
 const { generateInvoicePdfBuffer } = require('../utils/generateInvoicePdf');
 
 
-// ── Max file size: 50MB ─────────────────────────────────────
-const MAX_SIZE = 50 * 1024 * 1024;
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
-// ── Multer: memory storage (stream directly to GridFS) ────────
-// We use memoryStorage so multer holds the file in a Buffer.
-// For very large files this could be an issue, but since our
-// hard limit is 100 MB and we reject above that immediately
-// via fileSize limit, this remains safe and avoids disk I/O.
+// ── Max file size: 5GB to handle 100KB up to 1GB+ files ──────
+const MAX_SIZE = 5 * 1024 * 1024 * 1024; // 5 GB
+
+// ── Multer: disk storage (streams large 1GB+ files to temp disk) ─
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      const tempDir = path.join(os.tmpdir(), 'gt_deliverable_uploads');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      cb(null, tempDir);
+    },
+    filename: (_req, file, cb) => {
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      cb(null, `${Date.now()}-${safeName}`);
+    },
+  }),
   limits: { fileSize: MAX_SIZE },
   fileFilter: (_req, _file, cb) => {
-    // Accept ALL file types — restriction is size only
     cb(null, true);
   },
 });
@@ -49,46 +60,48 @@ function formatBytes(b) {
 }
 
 /**
- * Upload a Buffer to GridFS using an upload stream.
+ * Upload a File Stream to GridFS using an upload stream.
  * Returns the GridFS file _id.
  */
-function uploadBufferToGridFS(bucket, buffer, filename, metadata) {
+function uploadFileStreamToGridFS(bucket, filePath, filename, metadata) {
   return new Promise((resolve, reject) => {
     const uploadStream = bucket.openUploadStream(filename, { metadata });
+    const readStream = fs.createReadStream(filePath);
     uploadStream.on('error', reject);
-    uploadStream.on('finish', (file) => resolve(uploadStream.id));
-    uploadStream.end(buffer);
+    uploadStream.on('finish', () => resolve(uploadStream.id));
+    readStream.on('error', reject);
+    readStream.pipe(uploadStream);
   });
 }
 
 // ─────────────────────────────────────────────────────────────
 // POST /api/projects/:projectId/deliverables/file
-// Admin: upload a file deliverable
+// Admin: upload a file deliverable (Direct Google Drive Upload)
 // ─────────────────────────────────────────────────────────────
 router.post(
   '/projects/:projectId/deliverables/file',
   requireAuth('admin'),
   upload.single('file'),
   async (req, res) => {
+    let tempFilePath = req.file ? req.file.path : null;
     try {
       // ── 1. Validate project exists ────────────────────────
       const project = await Project.findById(req.params.projectId);
-      if (!project) return res.status(404).json({ error: 'Project not found' });
+      if (!project) {
+        if (tempFilePath && fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+        return res.status(404).json({ error: 'Project not found' });
+      }
 
       // ── 2. File present? ──────────────────────────────────
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
       const { name, description, allowDownload } = req.body;
       if (!name || !name.trim()) {
+        if (tempFilePath && fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         return res.status(400).json({ error: 'Deliverable name is required' });
       }
 
-      // ── 3. Size guard (multer already limits, but double-check) ─
-      if (req.file.size > MAX_SIZE) {
-        return res.status(400).json({ error: 'File size must be 100 MB or less.' });
-      }
-
-      // ── 4. Determine next version ─────────────────────────
+      // ── 3. Determine next version ─────────────────────────
       const latestDeliverable = await Deliverable.findOne(
         { projectId: project._id },
         {},
@@ -96,7 +109,7 @@ router.post(
       );
       const nextVersion = latestDeliverable ? latestDeliverable.version + 1 : 1;
 
-      // ── 5. Mark previous versions as superseded ───────────
+      // ── 4. Mark previous versions as superseded ───────────
       if (latestDeliverable) {
         await Deliverable.updateMany(
           { projectId: project._id, status: { $ne: 'superseded' } },
@@ -104,24 +117,33 @@ router.post(
         );
       }
 
-      // ── 6. Stream to GridFS ───────────────────────────────
-      const bucket = getDeliverablesBucket();
-      const gridMetadata = {
-        projectId: project._id.toString(),
-        clientId: project.clientFirebaseUid,
-        uploadedBy: req.uid,
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        version: nextVersion,
-        type: 'file',
-      };
-      const fileId = await uploadBufferToGridFS(
-        bucket,
-        req.file.buffer,
-        req.file.originalname,
-        gridMetadata
-      );
+      // ── 5. Project Google Drive Folder Link ─────────────────
+      const driveUrl = project.driveFolderUrl || null;
+
+      // ── 6. Also Stream to GridFS for direct fallback access ─
+      let fileId = null;
+      try {
+        const bucket = getDeliverablesBucket();
+        const gridMetadata = {
+          projectId: project._id.toString(),
+          clientId: project.clientFirebaseUid,
+          uploadedBy: req.uid,
+          originalName: req.file.originalname,
+          mimeType: req.file.mimetype,
+          size: req.file.size,
+          version: nextVersion,
+          type: 'file',
+          driveFileId: driveResult ? driveResult.driveFileId : null,
+        };
+        fileId = await uploadFileStreamToGridFS(
+          bucket,
+          tempFilePath,
+          req.file.originalname,
+          gridMetadata
+        );
+      } catch (gridErr) {
+        console.warn('[GridFS Upload Warning]:', gridErr.message);
+      }
 
       // ── 7. Create Deliverable document ────────────────────
       const deliverable = await Deliverable.create({
@@ -135,11 +157,16 @@ router.post(
         originalFileName: req.file.originalname,
         mimeType: req.file.mimetype,
         fileSize: req.file.size,
-        url: null,
+        url: driveUrl,
         version: nextVersion,
         allowDownload: allowDownload !== undefined ? String(allowDownload) !== 'false' : true,
         status: 'awaiting_approval',
       });
+
+      // Cleanup temp disk file
+      if (tempFilePath && fs.existsSync(tempFilePath)) {
+        fs.unlinkSync(tempFilePath);
+      }
 
       // ── 8. Update project status ──────────────────────────
       await Project.findByIdAndUpdate(project._id, {
@@ -163,11 +190,17 @@ router.post(
 
       res.status(201).json({
         deliverable,
-        message: `Version ${nextVersion} uploaded successfully (${formatBytes(req.file.size)})`,
+        driveUrl,
+        message: driveUrl
+          ? `Version ${nextVersion} uploaded to Google Drive folder for ${project.clientName} (${formatBytes(req.file.size)})`
+          : `Version ${nextVersion} uploaded successfully (${formatBytes(req.file.size)})`,
       });
     } catch (err) {
+      if (tempFilePath && fs.existsSync(tempFilePath)) {
+        fs.unlinkSync(tempFilePath);
+      }
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: 'File size must be 100 MB or less.' });
+        return res.status(400).json({ error: 'File size exceeds maximum allowed limit.' });
       }
       console.error('[deliverables/file]', err);
       res.status(500).json({ error: err.message });

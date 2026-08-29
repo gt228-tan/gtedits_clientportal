@@ -29,6 +29,11 @@ export async function fetchProject(projectId, token) {
   return apiRequest('GET', `/projects/${projectId}`, token);
 }
 
+// ── Admin: update project details (driveFolderUrl, title, etc) ──
+export async function updateProject(projectId, data, token) {
+  return apiRequest('PATCH', `/projects/${projectId}`, token, data);
+}
+
 // ── Admin: update project status ─────────────────────────
 export async function updateProjectStatus(projectId, status, token) {
   return apiRequest('PATCH', `/projects/${projectId}/status`, token, { status });

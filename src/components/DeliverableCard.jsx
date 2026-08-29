@@ -77,6 +77,29 @@ export default function DeliverableCard({
   };
 
 
+  const handleCopyLink = async () => {
+    const link = deliverable.url || null;
+    if (!link) {
+      showToast('⚠️ No Google Drive link available for this deliverable', 'warn');
+      return;
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(link);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = link;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      showToast('📋 Drive link copied to clipboard!', 'success');
+    } catch {
+      showToast('❌ Could not copy link', 'warn');
+    }
+  };
+
   return (
     <div className={`dlv-card ${isSuperseded ? 'dlv-card--superseded' : ''}`}>
       {/* Header row */}
@@ -157,6 +180,16 @@ export default function DeliverableCard({
           </a>
         )}
 
+        {deliverable.url && (
+          <button
+            className="dlv-btn dlv-btn--outline"
+            onClick={handleCopyLink}
+            title="Copy Google Drive link to clipboard"
+          >
+            📋 Copy Drive Link
+          </button>
+        )}
+
         {isAdmin && deliverable.type === 'file' && (
           <button
             className={`dlv-btn ${allowed ? 'dlv-btn--toggle-allowed' : 'dlv-btn--toggle-blocked'}`}
@@ -167,8 +200,6 @@ export default function DeliverableCard({
             {toggling ? '…' : allowed ? '🔓 Download Allowed' : '🔒 Download Blocked'}
           </button>
         )}
-
-
 
         {isAdmin && (
           <button

@@ -46,7 +46,21 @@ export default function ProjectDeliverablesSection({ project, token, isAdmin = f
     <div className="dlv-section">
       {/* Section header */}
       <div className="dlv-section-header">
-        <h3 className="dlv-section-title">📦 Deliverables</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <h3 className="dlv-section-title">📦 Deliverables</h3>
+          {project.driveFolderUrl && (
+            <a
+              href={project.driveFolderUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary"
+              style={{ padding: '4px 10px', fontSize: '0.82rem', textDecoration: 'none', background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', borderRadius: '6px' }}
+              title="Open Client's Google Drive Folder"
+            >
+              📁 Drive Folder ↗
+            </a>
+          )}
+        </div>
         {isAdmin && (
           <button className="btn-add-dlv" onClick={() => setShowUpload(true)}>
             ＋ Add Deliverable
@@ -117,6 +131,7 @@ export default function ProjectDeliverablesSection({ project, token, isAdmin = f
       {showUpload && (
         <DeliverableUploadModal
           projectId={project._id}
+          project={project}
           token={token}
           onClose={() => setShowUpload(false)}
           onUploaded={loadDeliverables}

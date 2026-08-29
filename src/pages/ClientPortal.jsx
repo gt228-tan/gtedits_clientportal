@@ -501,9 +501,22 @@ export default function ClientPortal() {
                         </span>
                       </div>
                       {p.description && <p className="proj-card-desc">{p.description}</p>}
-                      <p className="proj-card-date">
-                        Created {formatDateLong(p.createdAt)}
-                      </p>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                        <p className="proj-card-date" style={{ margin: 0 }}>
+                          Created {formatDateLong(p.createdAt)}
+                        </p>
+                        {p.driveFolderUrl && (
+                          <a
+                            href={p.driveFolderUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ padding: '4px 10px', fontSize: '0.8rem', textDecoration: 'none', background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', borderRadius: '6px', fontWeight: 600 }}
+                            onClick={e => e.stopPropagation()}
+                          >
+                            📁 Drive Folder ↗
+                          </a>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -546,8 +559,18 @@ export default function ClientPortal() {
 
             {!dlvLoading && deliverables.length > 0 && (
               <div className="dlv-section">
-                <div className="dlv-section-header">
+                <div className="dlv-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                   <h3 className="dlv-section-title">📦 Deliverables</h3>
+                  {selectedProject.driveFolderUrl && (
+                    <a
+                      href={selectedProject.driveFolderUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ padding: '6px 14px', fontSize: '0.85rem', textDecoration: 'none', background: '#16a34a', color: '#fff', borderRadius: '6px', fontWeight: 700 }}
+                    >
+                      📁 View Project Drive Folder ↗
+                    </a>
+                  )}
                 </div>
 
                 {deliverables.map((d, idx) => {

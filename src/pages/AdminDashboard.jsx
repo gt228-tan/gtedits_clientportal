@@ -56,6 +56,7 @@ export default function AdminDashboard() {
   const [createForClient, setCreateForClient] = useState(null); // { firebaseClientId, clientFirebaseUid, clientName }
   const [newProjectTitle, setNewProjectTitle] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
+  const [newProjectDriveUrl, setNewProjectDriveUrl] = useState('');
   const [createBusy, setCreateBusy] = useState(false);
 
   // ── Real-time listener on /clients/ ───────────────────────
@@ -260,11 +261,13 @@ export default function AdminDashboard() {
         clientName: createForClient.clientName,
         title: newProjectTitle.trim(),
         description: newProjectDesc,
+        driveFolderUrl: newProjectDriveUrl.trim(),
       }, token);
       showToast('🎉 Project created!');
       setShowCreateProject(false);
       setNewProjectTitle('');
       setNewProjectDesc('');
+      setNewProjectDriveUrl('');
       setCreateForClient(null);
       loadProjects();
     } catch (err) {
@@ -675,6 +678,29 @@ export default function AdminDashboard() {
                   disabled={createBusy}
                   required
                 />
+              </div>
+              <div className="dlv-form-field">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label style={{ margin: 0 }}>Google Drive Folder Link <span className="opt">(optional)</span></label>
+                  <a
+                    href="https://drive.google.com/drive/u/0/my-drive"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: '0.8rem', color: '#16a34a', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    Create Drive Folder ↗
+                  </a>
+                </div>
+                <input
+                  type="url"
+                  placeholder="https://drive.google.com/drive/folders/…"
+                  value={newProjectDriveUrl}
+                  onChange={e => setNewProjectDriveUrl(e.target.value)}
+                  disabled={createBusy}
+                />
+                <span className="dlv-hint" style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                  Paste Google Drive folder URL. Once saved, it will never ask for the drive link again!
+                </span>
               </div>
               <div className="dlv-form-field">
                 <label>Description <span className="opt">(optional)</span></label>

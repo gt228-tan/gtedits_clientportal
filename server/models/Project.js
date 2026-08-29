@@ -41,6 +41,11 @@ const ProjectSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    driveFolderUrl: {
+      type: String,
+      default: '',
+      trim: true,
+    },
 
     // ── Status lifecycle ──────────────────────────────────────
     status: {
