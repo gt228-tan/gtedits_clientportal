@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: gtclientportal-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USER
+        value: gtportal08@gmail.com
+      - key: EMAIL_PASS
+        sync: false
+      - key: ADMIN_EMAIL
+        value: gtbtbhay22@gmail.com
+      - key: CLIENT_URL
+        value: https://gtedits-clientportal.vercel.app
