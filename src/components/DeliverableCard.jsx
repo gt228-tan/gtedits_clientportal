@@ -70,6 +70,19 @@ export default function DeliverableCard({
       const res = await sendPaymentReminder(deliverable._id, token);
       showToast(`📧 ${res.message || 'Payment reminder sent successfully!'}`);
     } catch (err) {
+      if (err.message && err.message.toLowerCase().includes('email')) {
+        const entered = prompt(`Client does not have a notification email configured.\nPlease enter client's email to send the payment reminder:`);
+        if (entered && entered.trim()) {
+          try {
+            const res = await sendPaymentReminder(deliverable._id, token, { contactEmail: entered.trim() });
+            showToast(`📧 ${res.message || 'Payment reminder sent successfully!'}`);
+            return;
+          } catch (retryErr) {
+            showToast(`❌ ${retryErr.message}`, 'warn');
+            return;
+          }
+        }
+      }
       showToast(`❌ ${err.message}`, 'warn');
     } finally {
       setSendingReminder(false);

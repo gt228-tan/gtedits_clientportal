@@ -174,15 +174,22 @@ router.post(
       });
 
       // ── 9. Notify client via email ────────────────────────
+      let emailSent = false;
+      let targetClientEmail = null;
       try {
-        const clientEmail = await getClientContactEmail(project.firebaseClientId, project.clientFirebaseUid, project.clientName);
-        if (clientEmail) {
-          await sendClientDeliverableNotification({
-            clientEmail,
+        const authHeader = req.headers['authorization'] || '';
+        const authToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : (req.query?.token || req.query?.auth || null);
+        targetClientEmail = await getClientContactEmail(project.firebaseClientId, project.clientFirebaseUid, project.clientName, authToken);
+        if (targetClientEmail) {
+          const emailRes = await sendClientDeliverableNotification({
+            clientEmail: targetClientEmail,
             clientName: project.clientName,
             project,
             deliverable,
           });
+          emailSent = !!emailRes?.success;
+        } else {
+          console.warn(`⚠️ [deliverables/file] No notification email configured for "${project.clientName}". Deliverable notification email was NOT sent.`);
         }
       } catch (emailErr) {
         console.error('Failed to notify client of deliverable upload:', emailErr.message);
@@ -191,9 +198,13 @@ router.post(
       res.status(201).json({
         deliverable,
         driveUrl,
-        message: driveUrl
-          ? `Version ${nextVersion} uploaded to Google Drive folder for ${project.clientName} (${formatBytes(req.file.size)})`
-          : `Version ${nextVersion} uploaded successfully (${formatBytes(req.file.size)})`,
+        clientEmail: emailSent ? targetClientEmail : null,
+        emailSent,
+        message: emailSent
+          ? `Version ${nextVersion} uploaded & notification email sent to ${targetClientEmail}!`
+          : (driveUrl
+              ? `Version ${nextVersion} uploaded to Google Drive folder for ${project.clientName} (${formatBytes(req.file.size)})`
+              : `Version ${nextVersion} uploaded successfully (${formatBytes(req.file.size)})`),
       });
     } catch (err) {
       if (tempFilePath && fs.existsSync(tempFilePath)) {
@@ -253,21 +264,35 @@ router.post('/projects/:projectId/deliverables/link', requireAuth('admin'), asyn
     await Project.findByIdAndUpdate(project._id, { status: 'awaiting_client_response' });
 
     // Notify client via email
+    let emailSent = false;
+    let targetClientEmail = null;
     try {
-      const clientEmail = await getClientContactEmail(project.firebaseClientId, project.clientFirebaseUid, project.clientName);
-      if (clientEmail) {
-        await sendClientDeliverableNotification({
-          clientEmail,
+      const authHeader = req.headers['authorization'] || '';
+      const authToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : (req.query?.token || req.query?.auth || null);
+      targetClientEmail = await getClientContactEmail(project.firebaseClientId, project.clientFirebaseUid, project.clientName, authToken);
+      if (targetClientEmail) {
+        const emailRes = await sendClientDeliverableNotification({
+          clientEmail: targetClientEmail,
           clientName: project.clientName,
           project,
           deliverable,
         });
+        emailSent = !!emailRes?.success;
+      } else {
+        console.warn(`⚠️ [deliverables/link] No notification email configured for "${project.clientName}". Deliverable notification email was NOT sent.`);
       }
     } catch (emailErr) {
       console.error('Failed to notify client of link deliverable upload:', emailErr.message);
     }
 
-    res.status(201).json({ deliverable });
+    res.status(201).json({
+      deliverable,
+      clientEmail: emailSent ? targetClientEmail : null,
+      emailSent,
+      message: emailSent
+        ? `Deliverable added & notification email sent to ${targetClientEmail}!`
+        : `Deliverable link added successfully!`,
+    });
   } catch (err) {
     console.error('[deliverables/link]', err);
     res.status(500).json({ error: err.message });
@@ -440,19 +465,35 @@ router.all('/deliverables/:deliverableId/send-payment-reminder', requireAuth('ad
     const project = await Project.findById(deliverable.projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
+    const authHeader = req.headers['authorization'] || '';
+    const authToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : (req.query?.token || req.query?.auth || null);
+    const directEmail = req.body?.contactEmail || req.body?.notificationEmail || null;
+
     // Fetch client contact email
-    const clientEmail = await getClientContactEmail(project.firebaseClientId, project.clientFirebaseUid, project.clientName);
+    const clientEmail = await getClientContactEmail(
+      project.firebaseClientId,
+      project.clientFirebaseUid,
+      project.clientName,
+      authToken,
+      directEmail
+    );
     if (!clientEmail || !isRealEmail(clientEmail)) {
-      return res.status(400).json({ error: `Client "${project.clientName}" does not have a valid contact email configured.` });
+      return res.status(400).json({
+        error: `Client "${project.clientName}" does not have a valid notification email configured. Please enter a notification email.`,
+      });
     }
 
-    // Read client data from Firebase RTDB
-    const clientData = await readClientFromRTDB(project.firebaseClientId);
-    const workData = clientData?.work || {};
+    // Read client data from Firebase RTDB (or use payload clientData if available)
+    let clientData = req.body?.clientData || null;
+    if (!clientData) {
+      clientData = await readClientFromRTDB(project.firebaseClientId, authToken);
+    }
+    const workData = clientData?.work || req.body?.workData || {};
 
-    // Calculate grand total of remaining items
+    // Calculate grand total of remaining items safely
     let grandTotal = 0;
-    const remainingItems = Object.values(workData).filter(w => (w.status || 'Pending') !== 'Paid');
+    const workItems = Array.isArray(workData) ? workData : Object.values(workData);
+    const remainingItems = workItems.filter(w => w && typeof w === 'object' && (w.status || 'Pending') !== 'Paid');
     remainingItems.forEach(w => {
       const qty = Number(w.qty || 1);
       const rate = Number(w.price || w.amt || 0);
@@ -511,11 +552,14 @@ router.all('/clients/:clientId/send-payment-reminder', requireAuth('admin'), asy
     const { clientId } = req.params;
     if (!clientId) return res.status(400).json({ error: 'clientId is required' });
 
+    const authHeader = req.headers['authorization'] || '';
+    const authToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : (req.query?.token || req.query?.auth || null);
+
     // Read client record: payload > RTDB > Mongo
     let clientData = req.body?.clientData || null;
 
     if (!clientData) {
-      clientData = await readClientFromRTDB(clientId);
+      clientData = await readClientFromRTDB(clientId, authToken);
     }
 
     if (!clientData) {
@@ -539,17 +583,23 @@ router.all('/clients/:clientId/send-payment-reminder', requireAuth('admin'), asy
     const clientName = clientData.name || clientData.clientName || 'Client';
     const clientUid  = clientData.uid || '';
 
+    // Direct email from payload or clientData
+    const directEmail = req.body?.contactEmail || req.body?.notificationEmail || clientData.notificationEmail || clientData.contactEmail || clientData.email || null;
+
     // Resolve contact email
-    const clientEmail = await getClientContactEmail(clientId, clientUid, clientName);
+    const clientEmail = await getClientContactEmail(clientId, clientUid, clientName, authToken, directEmail);
     if (!clientEmail || !isRealEmail(clientEmail)) {
-      return res.status(400).json({ error: `Client "${clientName}" does not have a valid contact email configured.` });
+      return res.status(400).json({
+        error: `Client "${clientName}" does not have a valid notification email configured. Please enter a notification email.`,
+      });
     }
 
-    const workData = clientData.work || {};
+    const workData = clientData.work || req.body?.workData || {};
 
-    // Calculate grand total of remaining unpaid/advance items
+    // Calculate grand total of remaining unpaid/advance items safely
     let grandTotal = 0;
-    const remainingItems = Object.values(workData).filter(w => (w.status || 'Pending') !== 'Paid');
+    const workItems = Array.isArray(workData) ? workData : Object.values(workData);
+    const remainingItems = workItems.filter(w => w && typeof w === 'object' && (w.status || 'Pending') !== 'Paid');
     remainingItems.forEach(w => {
       const qty       = Number(w.qty || 1);
       const rate      = Number(w.price || w.amt || 0);

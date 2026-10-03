@@ -3382,3 +3382,212 @@ a:hover {
   -o-user-drag: none;
   user-drag: none;
 }
+
+/* ══════════════════════════════════════════════════════════
+   ADMIN CLIENTS HEADER & DUE FILTER CONTROLS
+   ══════════════════════════════════════════════════════════ */
+.admin-clients-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.admin-clients-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.client-count-pill {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: #475569;
+  letter-spacing: -0.01em;
+  transition: all 0.2s ease;
+}
+
+.client-count-pill.pill-due {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.admin-clients-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.client-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.client-search-box .search-icon {
+  position: absolute;
+  left: 11px;
+  font-size: 0.85rem;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.client-search-box input {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 30px 8px 32px;
+  font-size: 0.85rem;
+  color: #0f1714;
+  outline: none;
+  width: 200px;
+  transition: all 0.2s ease;
+}
+
+.client-search-box input:focus {
+  background: #ffffff;
+  border-color: #0f1714;
+  width: 230px;
+  box-shadow: 0 0 0 3px rgba(15, 23, 20, 0.06);
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.search-clear-btn:hover {
+  color: #0f1714;
+}
+
+/* Segmented Pill Filter */
+.client-filter-group {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 12px;
+  gap: 4px;
+  border: 1.5px solid #e2e8f0;
+}
+
+.filter-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+}
+
+.filter-pill-btn:hover {
+  color: #0f1714;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.filter-pill-btn.active {
+  background: #ffffff;
+  color: #0f1714;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.filter-pill-btn.pill-btn-due.active {
+  background: #ffffff;
+  color: #b45309;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.18), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.filter-pill-btn .pill-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #475569;
+  min-width: 18px;
+}
+
+.filter-pill-btn.active .pill-count {
+  background: #0f1714;
+  color: #ffffff;
+}
+
+.filter-pill-btn.pill-btn-due .pill-count.count-warning {
+  background: #f59e0b;
+  color: #ffffff;
+}
+
+.filter-pill-btn.pill-btn-due.active .pill-count.count-warning {
+  background: #d97706;
+  color: #ffffff;
+}
+
+/* Sort Dropdown */
+.client-sort-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 5px 12px;
+  transition: all 0.2s ease;
+}
+
+.client-sort-box:focus-within {
+  border-color: #0f1714;
+  box-shadow: 0 0 0 3px rgba(15, 23, 20, 0.06);
+  background: #ffffff;
+}
+
+.sort-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.client-sort-select {
+  background: transparent;
+  border: none;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #0f1714;
+  outline: none;
+  cursor: pointer;
+  padding: 2px 0;
+  font-family: inherit;
+}
+
+.client-sort-select option {
+  background: #ffffff;
+  color: #0f1714;
+  font-weight: 500;
+}

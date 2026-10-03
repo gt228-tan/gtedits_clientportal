@@ -47,12 +47,17 @@ function generateInvoicePdfBuffer({ clientName, work, brandName = 'GT Edits' }) 
       doc.text('RATE', 330, tableTop + 7, { width: 70, align: 'right' });
       doc.text('REMAINING DUE', 430, tableTop + 7, { width: 110, align: 'right' });
 
-      const allItems = Object.values(work || {});
-      const remainingItems = allItems.filter(w => (w.status || 'Pending') !== 'Paid');
+      const allItems = Array.isArray(work) ? work : Object.values(work || {});
+      const remainingItems = allItems.filter(w => w && typeof w === 'object' && (w.status || 'Pending') !== 'Paid');
       let grandTotal = 0;
       let y = tableTop + 24;
 
       remainingItems.forEach((w) => {
+        if (y > 720) {
+          doc.addPage();
+          y = 40;
+        }
+
         const qty = Number(w.qty || 1);
         const rate = Number(w.price || w.amt || 0);
         const lineTotal = qty * rate;
@@ -84,7 +89,11 @@ function generateInvoicePdfBuffer({ clientName, work, brandName = 'GT Edits' }) 
         y += 24;
       }
 
-      
+      if (y > 720) {
+        doc.addPage();
+        y = 40;
+      }
+
       doc.rect(40, y, 515, 28).fill(RED);
       doc.fillColor('#ffffff').fontSize(11).font('Helvetica-Bold');
       doc.text('TOTAL REMAINING DUE', 50, y + 8);

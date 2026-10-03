@@ -1,12 +1,19 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const nodemailer = require('nodemailer');
 
+const emailPass = (process.env.EMAIL_PASS || '').replace(/\s+/g, '');
+
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
+  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
   port: Number(process.env.EMAIL_PORT) || 587,
-  secure: false, // true for 465, false for 587
+  secure: Number(process.env.EMAIL_PORT) === 465, // true for 465, false for 587
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    pass: emailPass,
+  },
+  tls: {
+    rejectUnauthorized: false,
   },
 });
 
@@ -238,41 +245,74 @@ const sendClientRequestApprovalNotification = async ({ clientEmail, clientName, 
  * Send email notification to CLIENT when a DELIVERABLE is uploaded
  */
 const sendClientDeliverableNotification = async ({ clientEmail, clientName, project, deliverable }) => {
-  if (!clientEmail || clientEmail.includes('gtportal.com')) {
-    console.warn(`[sendEmail] Skipping deliverable email for "${clientName}": email is empty or generated login email (${clientEmail})`);
-    return;
+  if (!process.env.EMAIL_USER || !emailPass) {
+    console.error('❌ [sendEmail] EMAIL_USER or EMAIL_PASS not configured in server environment (.env)');
+    return { success: false, reason: 'Email server credentials not configured.' };
   }
+
+  if (!clientEmail || clientEmail.includes('gtportal.com') || !clientEmail.includes('@')) {
+    console.warn(`[sendEmail] Skipping deliverable email for "${clientName}": email is empty, invalid, or generated login email (${clientEmail})`);
+    return { success: false, reason: `Invalid or missing client email address (${clientEmail || 'empty'}).` };
+  }
+
   try {
     const clientPortalUrl = process.env.CLIENT_URL || 'https://gtedits-clientportal.vercel.app';
+    const notesHtml = deliverable.description
+      ? `<div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; margin: 12px 0; font-size: 13px; color: #475569;">
+          <strong>📝 Notes from Editor:</strong>
+          <p style="margin: 4px 0 0 0; white-space: pre-wrap;">${deliverable.description}</p>
+         </div>`
+      : '';
+
+    const directLinkHtml = deliverable.url
+      ? `<a href="${deliverable.url}" target="_blank" style="background-color: #0284c7; color: #ffffff; padding: 12px 22px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block; margin-left: 8px;">
+          🔗 Open Deliverable Link
+         </a>`
+      : '';
+
     const mailOptions = {
       from: `"GT Client Portal" <${process.env.EMAIL_USER}>`,
-      to: clientEmail,
-      subject: `📦 New Deliverable Uploaded for "${project.title}" (v${deliverable.version})`,
+      to: clientEmail.trim(),
+      subject: `📦 New Deliverable Ready: "${deliverable.name}" (v${deliverable.version}) - ${project.title || 'GT Edits'}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 24px; color: #333; background-color: #ffffff;">
           <h2 style="color: #0284c7; border-bottom: 2px solid #0284c7; padding-bottom: 8px; margin-top: 0;">🎬 Deliverable Ready for Review</h2>
           <p>Hi <strong>${clientName || 'Client'}</strong>,</p>
-          <p>A new deliverable has been uploaded for your project <strong>"${project.title}"</strong>.</p>
+          <p>A new deliverable version has been uploaded for your project <strong>"${project.title}"</strong>.</p>
           
           <div style="background-color: #e0f2fe; border: 1px solid #bae6fd; padding: 14px; border-radius: 6px; margin: 16px 0; font-size: 14px;">
             <p style="margin: 4px 0;"><strong>Deliverable:</strong> ${deliverable.name} (v${deliverable.version})</p>
             <p style="margin: 4px 0;"><strong>Project:</strong> ${project.title}</p>
+            ${deliverable.type === 'file' && deliverable.fileSize ? `<p style="margin: 4px 0;"><strong>File Size:</strong> ${(deliverable.fileSize / 1024 / 1024).toFixed(1)} MB</p>` : ''}
           </div>
 
-          <p>Please log in to preview and approve or request revisions.</p>
+          ${notesHtml}
+
+          <p style="font-size: 14px; color: #475569; margin: 20px 0 10px 0;">
+            Please log in to preview the deliverable and approve or request revisions:
+          </p>
 
           <div style="text-align: center; margin: 25px 0;">
             <a href="${clientPortalUrl}" style="background-color: #16a34a; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; display: inline-block;">
-              👀 View Deliverable
+              👀 Open Client Portal
             </a>
+            ${directLinkHtml}
           </div>
+
+          <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 25px 0;" />
+          <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">
+            GT Edits Client Portal · Deliverable Update Notification
+          </p>
         </div>
       `,
     };
-    await transporter.sendMail(mailOptions);
-    console.log(`✉️ Deliverable notification email sent successfully to ${clientEmail}`);
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✉️ Deliverable notification email sent successfully to ${clientEmail} (messageId: ${info.messageId})`);
+    return { success: true, email: clientEmail, messageId: info.messageId };
   } catch (err) {
     console.error('Failed to send client deliverable email:', err.message);
+    return { success: false, reason: err.message };
   }
 };
 
@@ -333,9 +373,14 @@ const sendClientPaymentReminderNotification = async ({
   grandTotal = 0,
   pdfBuffer,
 }) => {
-  if (!clientEmail || clientEmail.includes('gtportal.com')) {
-    console.warn(`[sendEmail] Skipping payment reminder email for "${clientName}": email is empty or generated login email (${clientEmail})`);
-    return { success: false, reason: 'Invalid or missing client email address.' };
+  if (!process.env.EMAIL_USER || !emailPass) {
+    console.error('❌ [sendEmail] EMAIL_USER or EMAIL_PASS not configured in server environment (.env)');
+    return { success: false, reason: 'Email server credentials (EMAIL_USER / EMAIL_PASS) are not configured in server .env.' };
+  }
+
+  if (!clientEmail || clientEmail.includes('gtportal.com') || !clientEmail.includes('@')) {
+    console.warn(`[sendEmail] Skipping payment reminder email for "${clientName}": email is empty, invalid, or generated login email (${clientEmail})`);
+    return { success: false, reason: `Invalid or missing client email address (${clientEmail || 'empty'}).` };
   }
 
   try {
@@ -346,7 +391,7 @@ const sendClientPaymentReminderNotification = async ({
 
     const mailOptions = {
       from: `"GT Client Portal" <${process.env.EMAIL_USER}>`,
-      to: clientEmail,
+      to: clientEmail.trim(),
       subject: `💳 Payment Reminder: Outstanding Balance of GT Edits`,
       html: `
         <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 620px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 10px; padding: 28px; color: #1e293b; background-color: #ffffff;">
@@ -358,7 +403,7 @@ const sendClientPaymentReminderNotification = async ({
           <div style="margin-top: 24px;">
             <p style="font-size: 15px; line-height: 1.6;">Dear <strong>${safeClientName}</strong>,</p>
             <p style="font-size: 15px; line-height: 1.6; color: #334155;">
-              We hope you are doing well! This is a friendly reminder regarding the remaining payment.
+              We hope you are doing well! This is a friendly reminder regarding your remaining balance payment.
             </p>
 
             <div style="background-color: #fffbebf5; border: 1px solid #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 8px; margin: 20px 0;">
@@ -388,7 +433,7 @@ const sendClientPaymentReminderNotification = async ({
           </div>
         </div>
       `,
-      attachments: pdfBuffer ? [
+      attachments: (pdfBuffer && Buffer.isBuffer(pdfBuffer) && pdfBuffer.length > 0) ? [
         {
           filename,
           content: pdfBuffer,
@@ -397,12 +442,12 @@ const sendClientPaymentReminderNotification = async ({
       ] : [],
     };
 
-    await transporter.sendMail(mailOptions);
-    console.log(`✉️ Payment reminder email sent successfully to ${clientEmail}`);
-    return { success: true, email: clientEmail };
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✉️ Payment reminder email sent successfully to ${clientEmail} (messageId: ${info.messageId})`);
+    return { success: true, email: clientEmail, messageId: info.messageId };
   } catch (err) {
     console.error('Failed to send payment reminder email:', err.message);
-    throw err;
+    throw new Error(`SMTP Mail delivery failed: ${err.message}`);
   }
 };
 

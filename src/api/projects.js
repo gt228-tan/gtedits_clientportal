@@ -51,7 +51,12 @@ export async function fetchRevisions(projectId, token) {
 
 
 export async function sendClientPaymentReminder(clientId, token, clientData) {
-  return apiRequest('POST', `/clients/${clientId}/send-payment-reminder`, token, clientData ? { clientData } : undefined);
+  const body = clientData ? {
+    clientData,
+    contactEmail: clientData.contactEmail || clientData.notificationEmail,
+    notificationEmail: clientData.notificationEmail || clientData.contactEmail,
+  } : undefined;
+  return apiRequest('POST', `/clients/${clientId}/send-payment-reminder`, token, body);
 }
 
 export async function fetchClientProjects(token) {

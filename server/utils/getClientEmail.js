@@ -32,8 +32,7 @@ function isRealEmail(email) {
 }
 
 
-async function readClientFromRTDB(clientId) {
-  
+async function readClientFromRTDB(clientId, authToken = null) {
   const db = getAdminDb();
   if (db) {
     try {
@@ -44,13 +43,18 @@ async function readClientFromRTDB(clientId) {
     }
   }
 
-  // Fallback: unauthenticated REST
+  // Fallback: REST request (with auth query param or header if token provided)
   try {
-    const url = `${DATABASE_URL.replace(/\/+$/, '')}/clients/${encodeURIComponent(clientId)}.json`;
-    const res = await fetch(url);
+    const base = DATABASE_URL.replace(/\/+$/, '');
+    const authQuery = authToken ? `?auth=${encodeURIComponent(authToken)}` : '';
+    const url = `${base}/clients/${encodeURIComponent(clientId)}.json${authQuery}`;
+    const headers = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+    const res = await fetch(url, { headers });
     if (res.ok) {
       const data = await res.json();
       if (data && !data.error) return data;
+    } else {
+      console.warn(`[EmailLookup] REST read for clientId "${clientId}" returned HTTP ${res.status}`);
     }
   } catch (err) {
     console.warn(`[EmailLookup] REST read failed for clientId "${clientId}":`, err.message);
@@ -59,8 +63,7 @@ async function readClientFromRTDB(clientId) {
   return null;
 }
 
-
-async function readAllClientsFromRTDB() {
+async function readAllClientsFromRTDB(authToken = null) {
   const db = getAdminDb();
   if (db) {
     try {
@@ -71,13 +74,17 @@ async function readAllClientsFromRTDB() {
     }
   }
 
-
   try {
-    const url = `${DATABASE_URL.replace(/\/+$/, '')}/clients.json`;
-    const res = await fetch(url);
+    const base = DATABASE_URL.replace(/\/+$/, '');
+    const authQuery = authToken ? `?auth=${encodeURIComponent(authToken)}` : '';
+    const url = `${base}/clients.json${authQuery}`;
+    const headers = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+    const res = await fetch(url, { headers });
     if (res.ok) {
       const data = await res.json();
       if (data && !data.error) return data;
+    } else {
+      console.warn(`[EmailLookup] REST read-all returned HTTP ${res.status}`);
     }
   } catch (err) {
     console.warn('[EmailLookup] REST read-all failed:', err.message);
@@ -86,9 +93,23 @@ async function readAllClientsFromRTDB() {
   return null;
 }
 
-async function getClientContactEmail(clientId, clientFirebaseUid, clientName = '') {
-  console.log(`[EmailLookup] Starting lookup for clientId="${clientId}", uid="${clientFirebaseUid}", name="${clientName}"`);
+async function getClientContactEmail(clientId, clientFirebaseUid, clientName = '', authToken = null, directEmail = null) {
+  console.log(`[EmailLookup] Starting lookup for clientId="${clientId}", uid="${clientFirebaseUid}", name="${clientName}", directEmail="${directEmail || ''}"`);
 
+  // 0. Direct email passed from payload/request
+  if (directEmail && isRealEmail(directEmail)) {
+    const cleanEmail = directEmail.trim();
+    console.log(`[EmailLookup] ✅ Using direct valid email: "${cleanEmail}"`);
+    // Upsert into MongoDB ClientEmail so future lookups are fast
+    ClientEmail.findOneAndUpdate(
+      { $or: [{ clientId }, { clientName }] },
+      { clientId: clientId || '', clientName: clientName || '', contactEmail: cleanEmail },
+      { upsert: true }
+    ).catch(e => console.warn('[EmailLookup] Failed saving direct email to Mongo:', e.message));
+    return cleanEmail;
+  }
+
+  // 1. Check MongoDB ClientEmail collection
   try {
     const query = [];
     if (clientId)   query.push({ clientId });
@@ -108,13 +129,13 @@ async function getClientContactEmail(clientId, clientFirebaseUid, clientName = '
     console.warn(`[EmailLookup] MongoDB search error:`, err.message);
   }
 
-
+  // 2. Direct RTDB lookup
   if (clientId) {
     try {
-      const c = await readClientFromRTDB(clientId);
+      const c = await readClientFromRTDB(clientId, authToken);
       if (c) {
-        const customEmail = c.contactEmail || c.notificationEmail;
-        console.log(`[EmailLookup] RTDB direct lookup for "${clientId}" returned contactEmail="${c.contactEmail}", notificationEmail="${c.notificationEmail}"`);
+        const customEmail = c.notificationEmail || c.contactEmail || c.email;
+        console.log(`[EmailLookup] RTDB direct lookup for "${clientId}" returned contactEmail="${c.contactEmail}", notificationEmail="${c.notificationEmail}", email="${c.email}"`);
         if (isRealEmail(customEmail)) {
           const email = customEmail.trim();
           console.log(`[EmailLookup] ✅ Found RTDB notification email "${email}" for clientId "${clientId}"`);
@@ -134,8 +155,9 @@ async function getClientContactEmail(clientId, clientFirebaseUid, clientName = '
     }
   }
 
+  // 3. RTDB all-clients scan
   try {
-    const allClients = await readAllClientsFromRTDB();
+    const allClients = await readAllClientsFromRTDB(authToken);
     if (allClients) {
       for (const [key, c] of Object.entries(allClients)) {
         if (!c) continue;
@@ -144,7 +166,7 @@ async function getClientContactEmail(clientId, clientFirebaseUid, clientName = '
         const matchesName = clientName && c.name && c.name.trim().toLowerCase() === clientName.trim().toLowerCase();
 
         if (matchesKey || matchesUid || matchesName) {
-          const customEmail = c.contactEmail || c.notificationEmail;
+          const customEmail = c.notificationEmail || c.contactEmail || c.email;
           if (isRealEmail(customEmail)) {
             const email = customEmail.trim();
             console.log(`[EmailLookup] ✅ Found notification email "${email}" from RTDB client record "${c.name}" (key: ${key})`);
@@ -168,9 +190,28 @@ async function getClientContactEmail(clientId, clientFirebaseUid, clientName = '
     console.warn(`[EmailLookup] RTDB all-clients search error:`, err.message);
   }
 
+  // 4. Mongo Project records fallback
+  try {
+    const Project = require('../models/Project');
+    const proj = await Project.findOne({
+      $or: [
+        { firebaseClientId: clientId },
+        { clientName: new RegExp(`^${(clientName || '').trim()}$`, 'i') }
+      ]
+    });
+    if (proj?.clientEmail && isRealEmail(proj.clientEmail)) {
+      const email = proj.clientEmail.trim();
+      console.log(`[EmailLookup] ✅ Found email "${email}" from Project record for "${clientName || clientId}"`);
+      return email;
+    }
+  } catch (projErr) {
+    // ignore
+  }
+
   console.warn(`[EmailLookup] ❌ No real notification email set for client "${clientName || clientId}". Email NOT sent.`);
   return '';
 }
 
-module.exports = { getClientContactEmail, isRealEmail, readClientFromRTDB };
+module.exports = { getClientContactEmail, isRealEmail, readClientFromRTDB, readAllClientsFromRTDB };
+
 

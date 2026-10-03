@@ -59,6 +59,11 @@ export default function AdminDashboard() {
   const [newProjectDriveUrl, setNewProjectDriveUrl] = useState('');
   const [createBusy, setCreateBusy] = useState(false);
 
+  // ── Client Filter state ────────────────────────────────────
+  const [clientFilter, setClientFilter] = useState('all'); // 'all' | 'due'
+  const [clientSearch, setClientSearch] = useState('');
+  const [sortBy, setSortBy] = useState('due_desc'); // 'due_desc' | 'newest' | 'total_desc' | 'name_asc'
+
   // ── Real-time listener on /clients/ ───────────────────────
   useEffect(() => {
     const unsub = onValue(ref(db, 'clients'), (snap) => {
@@ -294,11 +299,51 @@ export default function AdminDashboard() {
 
 
   const handleSendPaymentReminder = async (clientId, clientName, clientObj) => {
-    if (!confirm(`Send payment reminder email with remaining payment invoice attachment to ${clientName}?`)) return;
+    const client = clientObj || clients[clientId] || {};
+    let email = (client.notificationEmail || client.contactEmail || '').trim();
+
+    // If client does not have a real notification email configured, prompt admin to enter it!
+    if (!email || email.includes('gtportal.com')) {
+      const entered = prompt(
+        `Client "${clientName}" does not have a notification email configured.\nPlease enter client's email to send the payment reminder:`,
+        ''
+      );
+      if (!entered || !entered.trim()) {
+        showToast('⚠️ Payment reminder cancelled (no email provided)', 'warn');
+        return;
+      }
+      email = entered.trim();
+
+      // Automatically save to RTDB & Mongo
+      try {
+        await update(ref(db, `clients/${clientId}`), {
+          contactEmail: email,
+          notificationEmail: email,
+        });
+        fetch(`${API_BASE}/work-requests/client-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId, clientName, contactEmail: email })
+        }).catch(() => {});
+        showToast('✉️ Notification email saved!');
+      } catch (err) {
+        console.warn('Could not auto-save email to RTDB:', err);
+      }
+      client.notificationEmail = email;
+      client.contactEmail = email;
+    }
+
+    if (!confirm(`Send payment reminder email with remaining payment invoice attachment to ${clientName} (${email})?`)) return;
     setSendingReminderId(clientId);
     try {
       const token = await getToken();
-      const res = await sendClientPaymentReminder(clientId, token, clientObj || clients[clientId]);
+      const payload = {
+        ...client,
+        name: clientName,
+        contactEmail: email,
+        notificationEmail: email,
+      };
+      const res = await sendClientPaymentReminder(clientId, token, payload);
       showToast(`📧 ${res.message || 'Payment reminder sent successfully!'}`);
     } catch (err) {
       showToast(`❌ ${err.message}`, 'warn');
@@ -320,7 +365,83 @@ export default function AdminDashboard() {
     }
   };
 
+  const getClientDueAmount = (c) => {
+    let pendingAmt = 0;
+    const workItems = Array.isArray(c?.work) ? c.work : Object.values(c?.work || {});
+    workItems.forEach(w => {
+      if (!w) return;
+      const amt = Number(w.qty || 1) * Number(w.price || w.amt || 0);
+      if (w.status === 'Paid') {
+        // paid
+      } else if (w.status === 'Advance') {
+        const adv = Number(w.advance || 0);
+        pendingAmt += Math.max(0, amt - adv);
+      } else {
+        pendingAmt += amt;
+      }
+    });
+    return pendingAmt;
+  };
+
+  const getClientTotalValue = (c) => {
+    let total = 0;
+    const workItems = Array.isArray(c?.work) ? c.work : Object.values(c?.work || {});
+    workItems.forEach(w => {
+      if (!w) return;
+      total += Number(w.qty || 1) * Number(w.price || w.amt || 0);
+    });
+    return total;
+  };
+
   const clientEntries = Object.entries(clients);
+  const dueClientsCount = clientEntries.filter(([_, c]) => getClientDueAmount(c) > 0).length;
+
+  const filteredClientEntries = clientEntries.filter(([_, c]) => {
+    if (clientFilter === 'due' && getClientDueAmount(c) <= 0) {
+      return false;
+    }
+    if (clientSearch.trim()) {
+      const q = clientSearch.toLowerCase().trim();
+      const nameMatch = (c.name || '').toLowerCase().includes(q);
+      const emailMatch = (c.notificationEmail || c.contactEmail || '').toLowerCase().includes(q);
+      if (!nameMatch && !emailMatch) return false;
+    }
+    return true;
+  });
+
+  // Sort results in descending order
+  const sortedClientEntries = [...filteredClientEntries].sort((a, b) => {
+    const [idA, clientA] = a;
+    const [idB, clientB] = b;
+
+    if (sortBy === 'due_desc') {
+      const dueA = getClientDueAmount(clientA);
+      const dueB = getClientDueAmount(clientB);
+      if (dueB !== dueA) return dueB - dueA; // Descending by due amount (highest due first)
+      return idB.localeCompare(idA); // Descending by newest if due amount equal
+    }
+
+    if (sortBy === 'newest') {
+      return idB.localeCompare(idA); // Descending by creation time (newest first)
+    }
+
+    if (sortBy === 'total_desc') {
+      const totA = getClientTotalValue(clientA);
+      const totB = getClientTotalValue(clientB);
+      if (totB !== totA) return totB - totA; // Descending by total value
+      return idB.localeCompare(idA);
+    }
+
+    if (sortBy === 'name_asc') {
+      return (clientA.name || '').localeCompare(clientB.name || '');
+    }
+
+    // Default: descending by due amount
+    const dueA = getClientDueAmount(clientA);
+    const dueB = getClientDueAmount(clientB);
+    if (dueB !== dueA) return dueB - dueA;
+    return idB.localeCompare(idA);
+  });
 
   return (
     <div className="admin-layout">
@@ -447,15 +568,101 @@ export default function AdminDashboard() {
             </section>
 
             <section className="admin-section">
-              <h2 className="section-title">👥 All Clients</h2>
+              <div className="admin-clients-header">
+                <div className="admin-clients-title-group">
+                  <h2 className="section-title" style={{ margin: 0 }}>
+                    {clientFilter === 'due' ? '💳 Clients with Payment Due' : '👥 All Clients'}
+                  </h2>
+                  <span className={`client-count-pill ${clientFilter === 'due' ? 'pill-due' : ''}`}>
+                    {filteredClientEntries.length} {filteredClientEntries.length === 1 ? 'client' : 'clients'}
+                  </span>
+                </div>
+
+                <div className="admin-clients-filters">
+                  <div className="client-search-box">
+                    <span className="search-icon">🔍</span>
+                    <input
+                      type="text"
+                      placeholder="Search client or email…"
+                      value={clientSearch}
+                      onChange={e => setClientSearch(e.target.value)}
+                    />
+                    {clientSearch && (
+                      <button
+                        type="button"
+                        className="search-clear-btn"
+                        onClick={() => setClientSearch('')}
+                        title="Clear search"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="client-filter-group" role="tablist">
+                    <button
+                      type="button"
+                      className={`filter-pill-btn ${clientFilter === 'all' ? 'active' : ''}`}
+                      onClick={() => setClientFilter('all')}
+                    >
+                      <span>👥 All</span>
+                      <span className="pill-count">{clientEntries.length}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`filter-pill-btn pill-btn-due ${clientFilter === 'due' ? 'active' : ''}`}
+                      onClick={() => setClientFilter('due')}
+                    >
+                      <span>💳 Payment Due</span>
+                      <span className={`pill-count ${dueClientsCount > 0 ? 'count-warning' : ''}`}>
+                        {dueClientsCount}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Sort Dropdown */}
+                  <div className="client-sort-box">
+                    <span className="sort-label">Sort:</span>
+                    <select
+                      className="client-sort-select"
+                      value={sortBy}
+                      onChange={e => setSortBy(e.target.value)}
+                      title="Sort order for client list"
+                    >
+                      <option value="due_desc">💰 Due Amount (High → Low ↓)</option>
+                      <option value="newest">🕒 Newest Added First (↓)</option>
+                      <option value="total_desc">📦 Total Value (High → Low ↓)</option>
+                      <option value="name_asc">🔤 Name (A → Z)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               <div className="admin-client-list">
-                {clientEntries.length === 0 ? (
+                {sortedClientEntries.length === 0 ? (
                   <div className="admin-empty">
-                    <div className="empty-icon">📋</div>
-                    <p>No clients yet. Add your first client above.</p>
+                    <div className="empty-icon">{clientFilter === 'due' ? '🎉' : '📋'}</div>
+                    <p>
+                      {clientFilter === 'due'
+                        ? 'No clients have pending payment due! All client payments are up to date.'
+                        : clientSearch
+                        ? `No clients found matching "${clientSearch}".`
+                        : 'No clients yet. Add your first client above.'}
+                    </p>
+                    {(clientFilter === 'due' || clientSearch) && (
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        style={{ marginTop: '12px', fontSize: '0.85rem' }}
+                        onClick={() => { setClientFilter('all'); setClientSearch(''); }}
+                      >
+                        Show All Clients
+                      </button>
+                    )}
                   </div>
                 ) : (
-                  clientEntries.map(([id, c]) => (
+                  sortedClientEntries.map(([id, c]) => (
                     <ClientCard
                       key={id}
                       id={id}
@@ -888,9 +1095,28 @@ function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, 
             </p>
           </div>
         </div>
-        <span className={`clean-status-badge ${hasAuth ? 'status-active' : 'status-pending'}`}>
-          {hasAuth ? 'Active' : 'Pending'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {pendingAmt > 0 && (
+            <span
+              style={{
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                padding: '4px 10px',
+                borderRadius: '9999px',
+                background: '#fef3c7',
+                color: '#92400e',
+                border: '1px solid #fde68a',
+                whiteSpace: 'nowrap',
+              }}
+              title="Outstanding payment due"
+            >
+              ⏳ ₹{pendingAmt.toLocaleString('en-IN')} Due
+            </span>
+          )}
+          <span className={`clean-status-badge ${hasAuth ? 'status-active' : 'status-pending'}`}>
+            {hasAuth ? 'Active' : 'Pending'}
+          </span>
+        </div>
       </div>
 
       <div className="clean-card-stats">

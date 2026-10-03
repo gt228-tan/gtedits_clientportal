@@ -74,11 +74,65 @@ export default function DeliverableUploadModal({ projectId, project, token, onCl
       const finalLink = result.deliverable?.url || targetUrl;
       const copied = await copyToClipboard(finalLink);
 
-      if (copied) {
+      if (result.message) {
+        showToast(`🎉 ${result.message}`, 'success');
+      } else if (copied) {
         showToast('🎉 Deliverable uploaded to Drive & link copied to clipboard!', 'success');
       } else {
         showToast('🎉 Deliverable marked as uploaded!', 'success');
       }
+      onUploaded?.();
+      onClose();
+    } catch (err) {
+      setUploading(false);
+      showToast(`❌ ${err.message}`, 'warn');
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const f = e.target.files?.[0];
+    if (f) {
+      if (f.size > MAX_SIZE) {
+        showToast('❌ File size exceeds 5 GB limit.', 'warn');
+        return;
+      }
+      setFile(f);
+    }
+  };
+
+  const handleSubmitFile = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) { showToast('⚠️ Deliverable name is required', 'warn'); return; }
+    if (!file) { showToast('⚠️ Please select a file to upload', 'warn'); return; }
+
+    setUploading(true);
+    setProgress(0);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('name', name.trim());
+      if (description.trim()) fd.append('description', description.trim());
+      fd.append('allowDownload', String(allowDownload));
+
+      const res = await uploadFileDeliverable(projectId, fd, token, p => setProgress(p));
+      showToast(res.message || '🎉 Deliverable uploaded successfully!', 'success');
+      onUploaded?.();
+      onClose();
+    } catch (err) {
+      setUploading(false);
+      showToast(`❌ ${err.message}`, 'warn');
+    }
+  };
+
+  const handleSubmitLink = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) { showToast('⚠️ Deliverable name is required', 'warn'); return; }
+    if (!url.trim()) { showToast('⚠️ Deliverable link is required', 'warn'); return; }
+
+    setUploading(true);
+    try {
+      const res = await uploadLinkDeliverable(projectId, { name: name.trim(), description: description.trim(), url: url.trim() }, token);
+      showToast(res.message || '🎉 Deliverable link saved!', 'success');
       onUploaded?.();
       onClose();
     } catch (err) {

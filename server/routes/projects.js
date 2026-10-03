@@ -168,10 +168,13 @@ router.all('/clients/:clientId/send-payment-reminder', requireAuth('admin'), asy
     const { clientId } = req.params;
     if (!clientId) return res.status(400).json({ error: 'clientId is required' });
 
+    const authHeader = req.headers['authorization'] || '';
+    const authToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : (req.query?.token || req.query?.auth || null);
+
     let clientData = req.body?.clientData || null;
 
     if (!clientData) {
-      clientData = await readClientFromRTDB(clientId);
+      clientData = await readClientFromRTDB(clientId, authToken);
     }
 
     if (!clientData) {
@@ -195,15 +198,21 @@ router.all('/clients/:clientId/send-payment-reminder', requireAuth('admin'), asy
     const clientName = clientData.name || clientData.clientName || 'Client';
     const clientUid  = clientData.uid || '';
 
-    const clientEmail = await getClientContactEmail(clientId, clientUid, clientName);
+    // Direct email from payload or clientData
+    const directEmail = req.body?.contactEmail || req.body?.notificationEmail || clientData.notificationEmail || clientData.contactEmail || clientData.email || null;
+
+    const clientEmail = await getClientContactEmail(clientId, clientUid, clientName, authToken, directEmail);
     if (!clientEmail || !isRealEmail(clientEmail)) {
-      return res.status(400).json({ error: `Client "${clientName}" does not have a valid contact email configured.` });
+      return res.status(400).json({
+        error: `Client "${clientName}" does not have a valid notification email configured. Please enter a notification email.`,
+      });
     }
 
-    const workData = clientData.work || {};
+    const workData = clientData.work || req.body?.workData || {};
 
     let grandTotal = 0;
-    const remainingItems = Object.values(workData).filter(w => (w.status || 'Pending') !== 'Paid');
+    const workItems = Array.isArray(workData) ? workData : Object.values(workData);
+    const remainingItems = workItems.filter(w => w && typeof w === 'object' && (w.status || 'Pending') !== 'Paid');
     remainingItems.forEach(w => {
       const qty       = Number(w.qty || 1);
       const rate      = Number(w.price || w.amt || 0);
