@@ -18,17 +18,36 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '60mb' }));
 app.use(express.urlencoded({ limit: '60mb', extended: true }));
 
+// ── Middleware: Ensure MongoDB is connected ──────────────────
+app.use(async (_req, _res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error('Database connection error in request:', err.message);
+    next(err);
+  }
+});
+
 // ── Routes ───────────────────────────────────────────────────
 app.use('/api/work-requests', workRequests);
 app.use('/api/projects',      projects);      // /api/projects/...
 app.use('/api',               deliverables);  // /api/deliverables/..., /api/projects/:id/deliverables/...
 
 // ── Health check ─────────────────────────────────────────────
-app.get('/', (_, res) => res.json({ status: 'GT Client Portal API running ✅' }));
+app.get('/api', (_, res) => res.json({ status: 'GT Client Portal API running ✅' }));
+app.get('/',    (_, res) => res.json({ status: 'GT Client Portal API running ✅' }));
 
-// ── Connect DB then start server ─────────────────────────────
-connectDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
+// ── Start standalone server if run directly ──────────────────
+if (require.main === module) {
+  connectDB().then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
+    });
+  }).catch((err) => {
+    console.error('Failed to start server:', err.message);
   });
-});
+}
+
+module.exports = app;
+

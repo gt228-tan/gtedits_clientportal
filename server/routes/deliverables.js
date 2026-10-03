@@ -133,7 +133,7 @@ router.post(
           size: req.file.size,
           version: nextVersion,
           type: 'file',
-          driveFileId: driveResult ? driveResult.driveFileId : null,
+          driveFileId: null,
         };
         fileId = await uploadFileStreamToGridFS(
           bucket,
@@ -176,10 +176,12 @@ router.post(
       // ── 9. Notify client via email ────────────────────────
       let emailSent = false;
       let targetClientEmail = null;
+      let emailFailureReason = null;
       try {
         const authHeader = req.headers['authorization'] || '';
         const authToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : (req.query?.token || req.query?.auth || null);
-        targetClientEmail = await getClientContactEmail(project.firebaseClientId, project.clientFirebaseUid, project.clientName, authToken);
+        const directEmail = req.body?.contactEmail || req.body?.notificationEmail || null;
+        targetClientEmail = await getClientContactEmail(project.firebaseClientId, project.clientFirebaseUid, project.clientName, authToken, directEmail);
         if (targetClientEmail) {
           const emailRes = await sendClientDeliverableNotification({
             clientEmail: targetClientEmail,
@@ -188,23 +190,31 @@ router.post(
             deliverable,
           });
           emailSent = !!emailRes?.success;
+          if (!emailSent) {
+            emailFailureReason = emailRes?.reason || 'Failed to send deliverable notification email.';
+          }
         } else {
-          console.warn(`⚠️ [deliverables/file] No notification email configured for "${project.clientName}". Deliverable notification email was NOT sent.`);
+          emailFailureReason = `No notification email configured for "${project.clientName}".`;
+          console.warn(`⚠️ [deliverables/file] ${emailFailureReason} Deliverable notification email was NOT sent.`);
         }
       } catch (emailErr) {
+        emailFailureReason = emailErr.message;
         console.error('Failed to notify client of deliverable upload:', emailErr.message);
       }
 
       res.status(201).json({
         deliverable,
         driveUrl,
-        clientEmail: emailSent ? targetClientEmail : null,
+        clientEmail: targetClientEmail,
         emailSent,
+        emailReason: emailFailureReason,
         message: emailSent
           ? `Version ${nextVersion} uploaded & notification email sent to ${targetClientEmail}!`
-          : (driveUrl
-              ? `Version ${nextVersion} uploaded to Google Drive folder for ${project.clientName} (${formatBytes(req.file.size)})`
-              : `Version ${nextVersion} uploaded successfully (${formatBytes(req.file.size)})`),
+          : (targetClientEmail
+              ? `Version ${nextVersion} uploaded successfully! (Email note: ${emailFailureReason})`
+              : (driveUrl
+                  ? `Version ${nextVersion} uploaded to Google Drive folder for ${project.clientName} (${formatBytes(req.file.size)})`
+                  : `Version ${nextVersion} uploaded successfully (${formatBytes(req.file.size)})`)),
       });
     } catch (err) {
       if (tempFilePath && fs.existsSync(tempFilePath)) {
@@ -266,10 +276,12 @@ router.post('/projects/:projectId/deliverables/link', requireAuth('admin'), asyn
     // Notify client via email
     let emailSent = false;
     let targetClientEmail = null;
+    let emailFailureReason = null;
     try {
       const authHeader = req.headers['authorization'] || '';
       const authToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : (req.query?.token || req.query?.auth || null);
-      targetClientEmail = await getClientContactEmail(project.firebaseClientId, project.clientFirebaseUid, project.clientName, authToken);
+      const directEmail = req.body?.contactEmail || req.body?.notificationEmail || null;
+      targetClientEmail = await getClientContactEmail(project.firebaseClientId, project.clientFirebaseUid, project.clientName, authToken, directEmail);
       if (targetClientEmail) {
         const emailRes = await sendClientDeliverableNotification({
           clientEmail: targetClientEmail,
@@ -278,20 +290,28 @@ router.post('/projects/:projectId/deliverables/link', requireAuth('admin'), asyn
           deliverable,
         });
         emailSent = !!emailRes?.success;
+        if (!emailSent) {
+          emailFailureReason = emailRes?.reason || 'Failed to send deliverable notification email.';
+        }
       } else {
-        console.warn(`⚠️ [deliverables/link] No notification email configured for "${project.clientName}". Deliverable notification email was NOT sent.`);
+        emailFailureReason = `No notification email configured for "${project.clientName}".`;
+        console.warn(`⚠️ [deliverables/link] ${emailFailureReason} Deliverable notification email was NOT sent.`);
       }
     } catch (emailErr) {
+      emailFailureReason = emailErr.message;
       console.error('Failed to notify client of link deliverable upload:', emailErr.message);
     }
 
     res.status(201).json({
       deliverable,
-      clientEmail: emailSent ? targetClientEmail : null,
+      clientEmail: targetClientEmail,
       emailSent,
+      emailReason: emailFailureReason,
       message: emailSent
         ? `Deliverable added & notification email sent to ${targetClientEmail}!`
-        : `Deliverable link added successfully!`,
+        : (targetClientEmail
+            ? `Deliverable link added successfully! (Email note: ${emailFailureReason})`
+            : `Deliverable link added successfully! (No notification email configured for ${project.clientName})`),
     });
   } catch (err) {
     console.error('[deliverables/link]', err);

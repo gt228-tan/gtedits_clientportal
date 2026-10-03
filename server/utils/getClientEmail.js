@@ -101,11 +101,17 @@ async function getClientContactEmail(clientId, clientFirebaseUid, clientName = '
     const cleanEmail = directEmail.trim();
     console.log(`[EmailLookup] ✅ Using direct valid email: "${cleanEmail}"`);
     // Upsert into MongoDB ClientEmail so future lookups are fast
-    ClientEmail.findOneAndUpdate(
-      { $or: [{ clientId }, { clientName }] },
-      { clientId: clientId || '', clientName: clientName || '', contactEmail: cleanEmail },
-      { upsert: true }
-    ).catch(e => console.warn('[EmailLookup] Failed saving direct email to Mongo:', e.message));
+    const upsertQuery = [];
+    if (clientId && clientId.trim()) upsertQuery.push({ clientId: clientId.trim() });
+    if (clientName && clientName.trim()) upsertQuery.push({ clientName: new RegExp(`^${clientName.trim()}$`, 'i') });
+
+    if (upsertQuery.length > 0) {
+      ClientEmail.findOneAndUpdate(
+        { $or: upsertQuery },
+        { clientId: clientId || '', clientName: clientName || '', contactEmail: cleanEmail },
+        { upsert: true, returnDocument: 'after' }
+      ).catch(e => console.warn('[EmailLookup] Failed saving direct email to Mongo:', e.message));
+    }
     return cleanEmail;
   }
 
@@ -143,7 +149,7 @@ async function getClientContactEmail(clientId, clientFirebaseUid, clientName = '
           ClientEmail.findOneAndUpdate(
             { clientId },
             { clientId, clientName: c?.name || clientName, contactEmail: email },
-            { upsert: true }
+            { upsert: true, returnDocument: 'after' }
           ).catch(() => {});
           return email;
         }
@@ -174,7 +180,7 @@ async function getClientContactEmail(clientId, clientFirebaseUid, clientName = '
             ClientEmail.findOneAndUpdate(
               { clientId: key },
               { clientId: key, clientName: c.name || clientName, contactEmail: email },
-              { upsert: true }
+              { upsert: true, returnDocument: 'after' }
             ).catch(() => {});
             return email;
           } else {

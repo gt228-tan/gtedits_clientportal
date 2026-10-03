@@ -447,7 +447,7 @@ const sendClientPaymentReminderNotification = async ({
     return { success: true, email: clientEmail, messageId: info.messageId };
   } catch (err) {
     console.error('Failed to send payment reminder email:', err.message);
-    throw new Error(`SMTP Mail delivery failed: ${err.message}`);
+    return { success: false, reason: `SMTP Mail delivery failed: ${err.message}` };
   }
 };
 
