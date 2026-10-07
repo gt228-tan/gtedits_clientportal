@@ -22,3 +22,5 @@ services:
         value: gtbtbhay22@gmail.com
       - key: CLIENT_URL
         value: https://gtedits-clientportal.vercel.app
+      - key: GEMINI_API_KEY
+        sync: false
