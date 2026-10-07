@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   db, secondaryAuth,
-  ref, onValue, push, remove, update, set,
+  ref, onValue, push, remove, update, set, get,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updatePassword
@@ -15,6 +15,7 @@ import ClientPreviewModal from '../components/ClientPreviewModal';
 import WorkRequestsPanel from '../components/WorkRequestsPanel';
 import ProjectDeliverablesSection from '../components/ProjectDeliverablesSection';
 import DeliverablePreviewModal from '../components/DeliverablePreviewModal';
+import ThemeToggle from '../components/ThemeToggle';
 import { fetchProjects, createProject, deleteProject, updateProjectStatus, fetchRevisions, sendClientPaymentReminder } from '../api/projects';
 
 import { API_BASE } from '../api/config';
@@ -129,12 +130,12 @@ export default function AdminDashboard() {
     const name = newName.trim();
     if (!name) { showToast('⚠️ Client name required', 'warn'); return; }
 
-    const email    = clientEmail(name);
+    const email = clientEmail(name);
     const password = clientDefaultPass(name);
     setAddBusy(true);
 
     try {
-      const cred   = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
       const newUid = cred.user.uid;
       const notifEmail = newNotificationEmail.trim();
       const newRef = await push(ref(db, 'clients'), {
@@ -150,7 +151,7 @@ export default function AdminDashboard() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ clientId: newRef.key, clientName: name, contactEmail: notifEmail })
-        }).catch(() => {});
+        }).catch(() => { });
       }
 
       showToast('🎉 Client added!');
@@ -185,13 +186,41 @@ export default function AdminDashboard() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ clientId: id, clientName: clientObj?.name || '', contactEmail: notifEmail })
-        }).catch(() => {});
+        }).catch(() => { });
       }
 
       showToast('✉️ Notification email updated!');
     } catch (err) {
       console.error(err);
       showToast('❌ Update failed', 'warn');
+    }
+  };
+
+  const handleUpdateCalendlyUrl = async (id, currentUrl) => {
+    const input = prompt('Enter Calendly Meeting Link for client (or leave blank to use default):', currentUrl || '');
+    if (input === null) return;
+    try {
+      await update(ref(db, `clients/${id}`), {
+        calendlyUrl: input.trim()
+      });
+      showToast('📅 Client meeting link updated!');
+    } catch (err) {
+      console.error(err);
+      showToast('❌ Update failed', 'warn');
+    }
+  };
+
+  const handleSetGlobalCalendly = async () => {
+    try {
+      const snap = await get(ref(db, 'settings/calendlyUrl'));
+      const current = snap.exists() ? snap.val() : (import.meta.env.VITE_CALENDLY_URL || 'https://calendly.com');
+      const input = prompt('Enter default Calendly Meeting Link for all clients:', current);
+      if (input === null) return;
+      await set(ref(db, 'settings/calendlyUrl'), input.trim());
+      showToast('📅 Default Calendly link saved!');
+    } catch (err) {
+      console.error(err);
+      showToast('❌ Failed to update default meeting link', 'warn');
     }
   };
 
@@ -324,7 +353,7 @@ export default function AdminDashboard() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ clientId, clientName, contactEmail: email })
-        }).catch(() => {});
+        }).catch(() => { });
         showToast('✉️ Notification email saved!');
       } catch (err) {
         console.warn('Could not auto-save email to RTDB:', err);
@@ -488,11 +517,15 @@ export default function AdminDashboard() {
             )}
           </button>
         </nav>
+
+        <div className="sidebar-footer">
+          <ThemeToggle />
+        </div>
       </aside>
 
-      
+
       <main className="admin-main">
-        
+
         <div className="admin-topbar">
           <div className="admin-topbar-inner">
             <div>
@@ -509,6 +542,9 @@ export default function AdminDashboard() {
                   ← All Projects
                 </button>
               )}
+              {/* <button className="btn-secondary" onClick={handleSetGlobalCalendly} title="Configure default Calendly meeting URL">
+                📅 Calendly Link
+              </button> */}
               <button className="btn-logout-topbar" onClick={logout}>
                 🔒 Sign Out
               </button>
@@ -647,8 +683,8 @@ export default function AdminDashboard() {
                       {clientFilter === 'due'
                         ? 'No clients have pending payment due! All client payments are up to date.'
                         : clientSearch
-                        ? `No clients found matching "${clientSearch}".`
-                        : 'No clients yet. Add your first client above.'}
+                          ? `No clients found matching "${clientSearch}".`
+                          : 'No clients yet. Add your first client above.'}
                     </p>
                     {(clientFilter === 'due' || clientSearch) && (
                       <button
@@ -677,6 +713,7 @@ export default function AdminDashboard() {
                       onSetupAuth={() => handleSetupAuth(id, c.name)}
                       onReset={() => handleResetPassword(id, c.name)}
                       onUpdateEmail={() => handleUpdateNotificationEmail(id, c.notificationEmail || c.contactEmail)}
+                      onUpdateCalendly={() => handleUpdateCalendlyUrl(id, c.calendlyUrl)}
                       onDelete={() => handleDeleteClient(id)}
                       onSendReminder={() => handleSendPaymentReminder(id, c.name, c)}
                       isSendingReminder={sendingReminderId === id}
@@ -830,6 +867,7 @@ export default function AdminDashboard() {
         <ClientPreviewModal
           clientName={previewTarget.clientName}
           work={clients[previewTarget.clientId]?.work || {}}
+          calendlyUrl={clients[previewTarget.clientId]?.calendlyUrl}
           onClose={() => setPreviewTarget(null)}
         />
       )}
@@ -1068,7 +1106,22 @@ function ProjectDetailView({ project, getToken, onDelete, onStatusChange, status
 }
 
 // ── Client Card ────────────────────────────────────────────
-function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, onUpdateEmail, onPreview, onDelete, onCreateProject, onSendReminder, isSendingReminder }) {
+function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, onUpdateEmail, onUpdateCalendly, onPreview, onDelete, onCreateProject, onSendReminder, isSendingReminder }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClickOutside(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
+
   const work = Object.values(client.work || {});
   let paidAmt = 0, pendingAmt = 0;
   work.forEach(w => {
@@ -1081,79 +1134,310 @@ function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, 
   const email = clientEmail(client.name);
   const totalVal = paidAmt + pendingAmt;
   const notifEmail = client.notificationEmail || client.contactEmail || '';
+  const paidPercent = totalVal > 0 ? Math.min(100, Math.round((paidAmt / totalVal) * 100)) : 100;
+
+  const handleCopyEmail = (e) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(email);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const truncatedLogin = email.length > 16 ? email.slice(0, 10) + '...' : email;
 
   return (
     <div className="clean-client-card">
+      {/* ── Top Header Row ── */}
       <div className="clean-card-header">
         <div className="clean-card-left">
           <div className="clean-avatar">{client.name.charAt(0).toUpperCase()}</div>
           <div className="clean-info">
             <h3 className="clean-name">{client.name}</h3>
-            <p className="clean-email" style={{ fontSize: '0.78rem' }}>🔑 Login: {email}</p>
-            <p className="clean-email" style={{ fontSize: '0.78rem', color: notifEmail ? '#16a34a' : '#d97706', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '2px' }} onClick={onUpdateEmail} title="Click to edit notification email">
-              ✉️ Mail: {notifEmail || 'Set Notification Email'} ✏️
-            </p>
+
+            <div className="clean-login-row">
+              <span>🔑 Login: <span title={email}>{truncatedLogin}</span></span>
+              <button
+                type="button"
+                className="clean-copy-btn"
+                onClick={handleCopyEmail}
+                title={copied ? "Copied!" : "Copy login email"}
+              >
+                {copied ? (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                ) : (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                )}
+              </button>
+            </div>
+
+            <div className="clean-meta-row">
+              <span
+                className="clean-meta-item"
+                onClick={onUpdateEmail}
+                title="Click to edit notification email"
+              >
+                ✉️ Email: <span style={{ color: notifEmail ? '#0f172a' : '#ea580c', fontWeight: 600 }}>{notifEmail || 'Set Notification'}</span>
+              </span>
+              <span
+                className="clean-meta-item"
+                onClick={onUpdateCalendly}
+                title="Click to edit Calendly meeting link"
+              >
+                📅 Meet: <span>{client.calendlyUrl ? 'Custom Link' : 'Default Calendly'}</span> ✏️
+              </span>
+            </div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {pendingAmt > 0 && (
-            <span
-              style={{
-                fontSize: '0.74rem',
-                fontWeight: 700,
-                padding: '4px 10px',
-                borderRadius: '9999px',
-                background: '#fef3c7',
-                color: '#92400e',
-                border: '1px solid #fde68a',
-                whiteSpace: 'nowrap',
-              }}
-              title="Outstanding payment due"
-            >
-              ⏳ ₹{pendingAmt.toLocaleString('en-IN')} Due
-            </span>
+
+        <div className="clean-card-right">
+          {pendingAmt > 0 ? (
+            <div className="clean-due-badge" title="Outstanding payment due">
+              <div className="clean-due-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" fill="#ffedd5" />
+                  <line x1="12" y1="9" x2="12" y2="13" stroke="#ea580c" strokeWidth="2" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" stroke="#ea580c" strokeWidth="3" />
+                </svg>
+              </div>
+              <div className="clean-due-text">
+                <span className="clean-due-amount">₹{pendingAmt.toLocaleString('en-IN')} Due</span>
+                <span className="clean-due-sub">Payment pending</span>
+              </div>
+            </div>
+          ) : (
+            <div className="clean-settled-badge" title="All payments settled">
+              <div className="clean-settled-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+              </div>
+              <div className="clean-due-text">
+                <span className="clean-settled-amount">₹0 Due</span>
+                <span className="clean-settled-sub">Paid in full</span>
+              </div>
+            </div>
           )}
-          <span className={`clean-status-badge ${hasAuth ? 'status-active' : 'status-pending'}`}>
+
+          <span className={`clean-status-pill ${hasAuth ? 'status-active' : 'status-pending'}`}>
+            <span className="clean-status-dot" />
             {hasAuth ? 'Active' : 'Pending'}
           </span>
+
+          <button
+            type="button"
+            className="clean-more-dot-btn"
+            onClick={() => setMenuOpen(prev => !prev)}
+            title="More options"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="5" r="1" />
+              <circle cx="12" cy="12" r="1" />
+              <circle cx="12" cy="19" r="1" />
+            </svg>
+          </button>
         </div>
       </div>
 
-      <div className="clean-card-stats">
-        <div className="clean-stat-box">
-          <span className="stat-label">ITEMS</span>
-          <span className="stat-val">📦 {work.length}</span>
+      {/* ── Middle Metrics & Payment Progress Container ── */}
+      <div className="clean-stats-container">
+        <div className="clean-stats-grid">
+          <div className="clean-stat-item">
+            <span className="clean-stat-label">📦 ITEMS</span>
+            <span className="clean-stat-value">{work.length}</span>
+          </div>
+          <div className="clean-stat-item">
+            <span className="clean-stat-label">🪙 TOTAL</span>
+            <span className="clean-stat-value">₹{totalVal.toLocaleString('en-IN')}</span>
+          </div>
+          <div className="clean-stat-item">
+            <span className="clean-stat-label">✔️ PAID</span>
+            <span className="clean-stat-value val-paid">₹{paidAmt.toLocaleString('en-IN')}</span>
+          </div>
+          <div className="clean-stat-item">
+            <span className="clean-stat-label">⚠️ DUE</span>
+            <span className="clean-stat-value val-due">₹{pendingAmt.toLocaleString('en-IN')}</span>
+          </div>
         </div>
-        <div className="clean-stat-box">
-          <span className="stat-label">TOTAL</span>
-          <span className="stat-val">₹{totalVal.toLocaleString('en-IN')}</span>
-        </div>
-        <div className="clean-stat-box">
-          <span className="stat-label">PAID</span>
-          <span className="stat-val val-paid">₹{paidAmt.toLocaleString('en-IN')}</span>
-        </div>
-        <div className="clean-stat-box">
-          <span className="stat-label">DUE</span>
-          <span className="stat-val val-due">₹{pendingAmt.toLocaleString('en-IN')}</span>
+
+        <div className="clean-stats-divider" />
+
+        <div className="clean-payment-progress">
+          <span className="clean-payment-title">Payment</span>
+          <span className="clean-payment-subtitle">
+            ₹{paidAmt.toLocaleString('en-IN')} paid • ₹{pendingAmt.toLocaleString('en-IN')} due
+          </span>
+          <div className="clean-progress-row">
+            <div className="clean-progress-track">
+              <div
+                className="clean-progress-bar"
+                style={{ width: `${paidPercent}%` }}
+              />
+            </div>
+            <span className="clean-progress-percent">{paidPercent}%</span>
+          </div>
         </div>
       </div>
 
-      <div className="clean-card-actions">
-        {!hasAuth ? (
-          <button className="clean-btn btn-setup" onClick={onSetupAuth}>🔑 Setup</button>
-        ) : (
-          <>
-            <button className="clean-btn btn-soft" onClick={onShowCred} title="Credentials">🔐 Creds</button>
-            <button className="clean-btn btn-soft" onClick={onReset} title="Reset password">🔄 Reset</button>
-          </>
-        )}
-        <button className="clean-btn btn-soft" onClick={onPreview} title="Preview Portal">👁 View</button>
-        <button className="clean-btn btn-soft" onClick={onCreateProject} title="Create Project">📁 Project</button>
-        <button className="clean-btn btn-soft btn-reminder" onClick={onSendReminder} disabled={isSendingReminder} title="Send Payment Reminder Email with Invoice Attachment">
-          {isSendingReminder ? '⏳ Reminder' : '💳 Reminder'}
+      {/* ── Bottom Action Buttons Bar ── */}
+      <div className="clean-card-actions-bar" ref={menuRef}>
+        <button
+          type="button"
+          className="clean-btn-view-client"
+          onClick={onPreview}
+          title="Preview Client Portal"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          View Client
         </button>
-        <button className="clean-btn btn-primary" onClick={onOpenWork}>📋 Work</button>
-        <button className="clean-btn btn-del" onClick={onDelete} title="Delete">🗑️</button>
+
+        <button
+          type="button"
+          className="clean-btn-card-action"
+          onClick={onCreateProject}
+          title="Create Project"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 8 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+          </svg>
+          Project
+        </button>
+
+        <button
+          type="button"
+          className="clean-btn-card-action"
+          onClick={onOpenWork}
+          title="Open Work Deliverables"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect width="20" height="14" x="2" y="7" rx="2" ry="2" />
+            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+          </svg>
+          Work
+        </button>
+
+        <button
+          type="button"
+          className="clean-btn-card-reminder"
+          onClick={onSendReminder}
+          disabled={isSendingReminder}
+          title="Send Payment Reminder Email with Invoice Attachment"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+          </svg>
+          {isSendingReminder ? 'Sending…' : 'Reminder'}
+        </button>
+
+        <button
+          type="button"
+          className="clean-btn-card-more"
+          onClick={() => setMenuOpen(prev => !prev)}
+          title="More client actions"
+        >
+          <span>••• More</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+
+        {/* ── Dropdown Menu (Client Settings) ── */}
+        {menuOpen && (
+          <div className="clean-card-dropdown">
+            <div className="clean-dropdown-header">Client Settings</div>
+
+            <button
+              type="button"
+              className="clean-dropdown-item"
+              onClick={() => {
+                setMenuOpen(false);
+                if (hasAuth) { onShowCred(); }
+                else { onSetupAuth(); }
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="7.5" cy="15.5" r="5.5" />
+                <path d="m21 2-9.6 9.6" />
+                <path d="m15.5 7.5 3 3L22 7l-3-3" />
+              </svg>
+              {hasAuth ? 'Credentials' : 'Setup Credentials'}
+            </button>
+
+            <button
+              type="button"
+              className="clean-dropdown-item"
+              onClick={() => {
+                setMenuOpen(false);
+                onReset();
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+              </svg>
+              Reset Password
+            </button>
+
+            <button
+              type="button"
+              className="clean-dropdown-item"
+              onClick={() => {
+                setMenuOpen(false);
+                onUpdateEmail();
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="20" height="16" x="2" y="4" rx="2" />
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
+              Notifications
+            </button>
+
+            <button
+              type="button"
+              className="clean-dropdown-item"
+              onClick={() => {
+                setMenuOpen(false);
+                onUpdateCalendly();
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+                <line x1="16" x2="16" y1="2" y2="6" />
+                <line x1="8" x2="8" y1="2" y2="6" />
+                <line x1="3" x2="21" y1="10" y2="10" />
+              </svg>
+              Calendly
+            </button>
+
+            <div className="clean-dropdown-divider" />
+
+            <button
+              type="button"
+              className="clean-dropdown-item item-danger"
+              onClick={() => {
+                setMenuOpen(false);
+                onDelete();
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18" />
+                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+              </svg>
+              Delete Client
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

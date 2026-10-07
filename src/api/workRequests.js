@@ -45,9 +45,38 @@ export async function updateRequestStatus(id, status, adminNote = '') {
   return res.json();
 }
 
+/** Admin: update entire request scope/fields */
+export async function updateWorkRequest(id, data) {
+  const res = await fetch(`${BASE}/${id}`, {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to update request');
+  }
+  return res.json();
+}
+
 /** Admin: delete a request */
 export async function deleteRequest(id) {
   const res = await fetch(`${BASE}/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete request');
   return res.json();
 }
+
+/** Client: Call Gemini AI Planner endpoint to analyze brief and generate plan */
+export async function analyzeWorkPrompt({ prompt, clarifications = [], clientName = '' }) {
+  const res = await fetch(`${API_BASE}/ai-planner/analyze`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ prompt, clarifications, clientName }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Failed to analyze request with AI');
+  }
+  return data;
+}
+

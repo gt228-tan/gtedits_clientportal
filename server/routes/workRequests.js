@@ -42,16 +42,52 @@ async function createProjectForApprovedRequest(workRequest, options = {}) {
         ? workRequest.title.trim()
         : `${workRequest.type}${workRequest.gameName ? ' (' + workRequest.gameName + ')' : ''}`;
 
+      // Build rich description if AI planned
+      let projectDescription = workRequest.remarks || '';
+      if (workRequest.aiGenerated && workRequest.specifications) {
+        const specs = [];
+        if (workRequest.specifications.duration) specs.push(`Duration: ${workRequest.specifications.duration}`);
+        if (workRequest.specifications.style) specs.push(`Style: ${workRequest.specifications.style}`);
+        if (workRequest.specifications.platform) specs.push(`Platform: ${workRequest.specifications.platform}`);
+        if (workRequest.quantity) specs.push(`Quantity: ${workRequest.quantity}`);
+        const specsText = specs.length > 0 ? `\n\n[Specs: ${specs.join(' | ')}]` : '';
+        projectDescription = (projectDescription ? `${projectDescription}\n` : '') + `Auto-created from AI Work Request: ${projectTitle}${specsText}`;
+      } else if (!projectDescription) {
+        projectDescription = `Auto-created from approved Work Request (${workRequest.category} - ${workRequest.type})`;
+      }
+
       // Create new Project
       project = await Project.create({
         firebaseClientId: workRequest.clientId,
         clientFirebaseUid: clientFirebaseUid,
         clientName: workRequest.clientName,
         title: projectTitle,
-        description: workRequest.remarks || `Auto-created from approved Work Request (${workRequest.category} - ${workRequest.type})`,
+        description: projectDescription,
         status: 'project_created',
         workRequestId: workRequest._id,
       });
+
+      // If AI generated multiple deliverables, seed initial draft deliverable placeholders
+      if (workRequest.aiGenerated && Array.isArray(workRequest.deliverablesList) && workRequest.deliverablesList.length > 0) {
+        const Deliverable = require('../models/Deliverable');
+        for (const item of workRequest.deliverablesList) {
+          try {
+            await Deliverable.create({
+              projectId: project._id,
+              clientFirebaseUid: clientFirebaseUid,
+              uploadedBy: 'admin',
+              type: 'link',
+              name: item.name || 'Deliverable',
+              description: item.notes || `Deliverable for ${projectTitle}`,
+              url: workRequest.materials || 'https://drive.google.com',
+              version: 1,
+              status: 'draft',
+            });
+          } catch (delivErr) {
+            console.warn(`Could not seed draft deliverable "${item.name}":`, delivErr.message);
+          }
+        }
+      }
 
       isNewProject = true;
       console.log(`🎉 Auto-created project "${project.title}" (ID: ${project._id}) for client "${project.clientName}"`);
@@ -164,10 +200,26 @@ router.post('/client-email', async (req, res) => {
   }
 });
 
+// ── GET /api/work-requests/client-email — Fetch client's notification email ─
+router.get('/client-email', async (req, res) => {
+  try {
+    const { clientId, clientName } = req.query;
+    const email = await getClientContactEmail({ clientId, clientName });
+    res.json({ contactEmail: email || '' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── POST /api/work-requests — Client submits new request ─────
 router.post('/', async (req, res) => {
   try {
-    const { clientId, clientFirebaseUid, clientName, title, category, type, gameName, materials, image, budget, deadline, remarks, notificationEmail, contactEmail } = req.body;
+    const {
+      clientId, clientFirebaseUid, clientName, title, category, type, gameName,
+      materials, image, budget, deadline, remarks, notificationEmail, contactEmail,
+      aiGenerated, aiConfidence, aiOriginalPrompt, quantity, specifications,
+      requiredAssets, suggestedWorkflow, deliverablesList
+    } = req.body;
     
     // Auto-save notification email to client record in RTDB & MongoDB if provided
     const providedEmail = (notificationEmail || contactEmail || '').trim();
@@ -193,14 +245,22 @@ router.post('/', async (req, res) => {
       clientFirebaseUid: clientFirebaseUid || '',
       clientName,
       title: title || '',
-      category,
-      type,
+      category: category || 'Other',
+      type: type || 'Reels',
       gameName: gameName || '',
       materials: materials || '',
       image: image || '',
-      budget,
-      deadline,
+      budget: budget !== undefined && budget !== null && budget !== '' ? Number(budget) : 0,
+      deadline: deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       remarks: remarks || '',
+      aiGenerated: Boolean(aiGenerated),
+      aiConfidence: aiConfidence ? Number(aiConfidence) : null,
+      aiOriginalPrompt: aiOriginalPrompt || '',
+      quantity: quantity ? Number(quantity) : 1,
+      specifications: specifications || {},
+      requiredAssets: Array.isArray(requiredAssets) ? requiredAssets : [],
+      suggestedWorkflow: Array.isArray(suggestedWorkflow) ? suggestedWorkflow : [],
+      deliverablesList: Array.isArray(deliverablesList) ? deliverablesList : [],
     });
 
     // Send email notification to admin asynchronously
@@ -209,6 +269,28 @@ router.post('/', async (req, res) => {
     });
 
     res.status(201).json(doc);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ── PUT /api/work-requests/:id — Admin updates scope / fields ─
+router.put('/:id', async (req, res) => {
+  try {
+    const allowed = [
+      'title', 'category', 'type', 'gameName', 'materials', 'budget',
+      'deadline', 'remarks', 'quantity', 'specifications', 'requiredAssets',
+      'suggestedWorkflow', 'deliverablesList', 'adminNote'
+    ];
+    const updateData = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) {
+        updateData[key] = req.body[key];
+      }
+    }
+    const doc = await WorkRequest.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
+    if (!doc) return res.status(404).json({ error: 'Work Request not found' });
+    res.json(doc);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

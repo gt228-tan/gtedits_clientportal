@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { fetchAllRequests, updateRequestStatus, deleteRequest } from '../api/workRequests';
+import { fetchAllRequests, updateRequestStatus, updateWorkRequest, deleteRequest } from '../api/workRequests';
 import { showToast } from './Toast';
 
 const STATUS_TABS = ['All', 'Pending', 'Approved', 'Rejected', 'Revision'];
 
 const STATUS_BADGE = {
-  Pending:  { emoji: '🕐', cls: 'wr-badge-pending'  },
+  Pending: { emoji: '🕐', cls: 'wr-badge-pending' },
   Approved: { emoji: '✅', cls: 'wr-badge-approved' },
   Rejected: { emoji: '❌', cls: 'wr-badge-rejected' },
   Revision: { emoji: '🔄', cls: 'wr-badge-revision' },
@@ -34,13 +34,22 @@ export const FREQUENT_REJECT_REASONS = [
 
 export default function WorkRequestsPanel() {
   const [requests, setRequests] = useState([]);
-  const [tab,      setTab]      = useState('All');
-  const [loading,  setLoading]  = useState(true);
+  const [tab, setTab] = useState('All');
+  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);   // request being reviewed
   const [rejectingModal, setRejectingModal] = useState(null); // request being rejected
   const [rejectReason, setRejectReason] = useState('');
-  const [note,     setNote]     = useState('');
-  const [busy,     setBusy]     = useState(false);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  // ── Edit Scope State (Step 6 in newiddea.txt) ───────────────────
+  const [editingScope, setEditingScope] = useState(false);
+  const [scopeForm, setScopeForm] = useState({
+    title: '',
+    budget: '',
+    deadline: '',
+    remarks: '',
+  });
 
   const load = async () => {
     setLoading(true);
@@ -68,6 +77,7 @@ export default function WorkRequestsPanel() {
       await updateRequestStatus(target._id, status, customNote);
       showToast(status === 'Approved' ? '🎉 Marked as Approved & Project Created!' : `✅ Marked as ${status}`);
       setSelected(null);
+      setEditingScope(false);
       setRejectingModal(null);
       setRejectReason('');
       setNote('');
@@ -82,6 +92,40 @@ export default function WorkRequestsPanel() {
   const openRejectModal = (reqObj) => {
     setRejectingModal(reqObj);
     setRejectReason(reqObj.adminNote || '');
+  };
+
+  const handleOpenReview = (r) => {
+    setSelected(r);
+    setNote(r.adminNote || '');
+    setEditingScope(false);
+    setScopeForm({
+      title: r.title || '',
+      budget: r.budget ? String(r.budget) : '0',
+      deadline: r.deadline ? new Date(r.deadline).toISOString().split('T')[0] : '',
+      remarks: r.remarks || '',
+    });
+  };
+
+  const handleSaveScopeEdit = async (e) => {
+    e.preventDefault();
+    if (!selected) return;
+    setBusy(true);
+    try {
+      const updated = await updateWorkRequest(selected._id, {
+        title: scopeForm.title.trim(),
+        budget: Number(scopeForm.budget) || 0,
+        deadline: scopeForm.deadline,
+        remarks: scopeForm.remarks.trim(),
+      });
+      setSelected(updated);
+      setEditingScope(false);
+      showToast('💾 Scope details updated!');
+      load();
+    } catch (err) {
+      showToast(`❌ ${err.message}`, 'warn');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleDelete = async (id) => {
@@ -143,7 +187,7 @@ export default function WorkRequestsPanel() {
                 <th>Title</th>
                 <th>Category</th>
                 <th>Type</th>
-                <th>Game</th>
+                <th>Game / Platform</th>
                 <th>Budget</th>
                 <th>Deadline</th>
                 <th>Status</th>
@@ -157,14 +201,25 @@ export default function WorkRequestsPanel() {
                   <tr key={r._id}>
                     <td className="col-num" data-label="#">{i + 1}</td>
                     <td data-label="Client">{r.clientName}</td>
-                    <td data-label="Title"><strong style={{ color: '#0f1714' }}>{r.title || '—'}</strong></td>
+                    <td data-label="Title">
+                      <strong className="wr-title-text">{r.title || '—'}</strong>
+                      {r.aiGenerated && (
+                        <div style={{ marginTop: '2px' }}>
+                          <span className="ai-confidence-chip" style={{ fontSize: '0.7rem', padding: '2px 6px' }}>
+                            ✨ AI ({r.aiConfidence || 94}%)
+                          </span>
+                        </div>
+                      )}
+                    </td>
                     <td data-label="Category">
                       <span className={`wr-cat-chip ${r.category === 'Gaming' ? 'chip-gaming' : 'chip-other'}`}>
                         {r.category === 'Gaming' ? '🎮' : '🎬'} {r.category}
                       </span>
                     </td>
                     <td data-label="Type">{r.type}</td>
-                    <td className="text-muted" data-label="Game">{r.gameName || '—'}</td>
+                    <td className="text-muted" data-label="Game / Platform">
+                      {r.gameName || r.specifications?.platform || '—'}
+                    </td>
                     <td data-label="Budget">₹{Number(r.budget).toLocaleString('en-IN')}</td>
                     <td data-label="Deadline">{new Date(r.deadline).toLocaleDateString('en-IN')}</td>
                     <td data-label="Status">
@@ -175,28 +230,30 @@ export default function WorkRequestsPanel() {
                     <td data-label="Actions">
                       <div className="wr-action-btns">
                         <button
-                          className="wr-btn-action wr-btn-view"
-                          onClick={() => { setSelected(r); setNote(r.adminNote || ''); }}
+                          type="button"
+                          className="wr-btn-pill wr-btn-pill-view"
+                          onClick={() => handleOpenReview(r)}
                           title="Review"
                         >
-                          👁 Review
+                          👁
                         </button>
                         {r.status !== 'Rejected' && (
                           <button
-                            className="wr-btn-action wr-btn-del"
-                            style={{ background: '#fee2e2', color: '#dc2626' }}
+                            type="button"
+                            className="wr-btn-pill wr-btn-pill-reject"
                             onClick={() => openRejectModal(r)}
                             title="Reject Request"
                           >
-                            ❌ Reject
+                            ✕
                           </button>
                         )}
                         <button
-                          className="wr-btn-action wr-btn-del"
+                          type="button"
+                          className="wr-btn-pill wr-btn-pill-del"
                           onClick={() => handleDelete(r._id)}
                           title="Delete"
                         >
-                          🗑️ Delete
+                          🗑️
                         </button>
                       </div>
                     </td>
@@ -208,184 +265,342 @@ export default function WorkRequestsPanel() {
         )}
       </div>
 
-      {/* ── Detail / Review Modal ─────────────────────────── */}
+      {/* ── Detail / Review Modal (Steps 6 & 7 in newiddea.txt) ── */}
       {selected && !rejectingModal && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setSelected(null)}>
           <div className="wr-detail-modal">
             <div className="wr-modal-header">
               <div>
-                <h2 className="wr-modal-title">📋 Request Detail</h2>
-                <p className="wr-modal-sub">{selected.clientName}</p>
+                <h2 className="wr-modal-title">
+                  {selected.aiGenerated ? '✨ AI-Assisted Work Request' : '📋 Request Detail'}
+                </h2>
+                <p className="wr-modal-sub">Client: <strong>{selected.clientName}</strong></p>
               </div>
               <button className="wr-close-btn" onClick={() => setSelected(null)}>✕</button>
             </div>
 
-            <div className="wr-detail-grid">
-              {selected.title && (
-                <div className="wr-detail-item wr-detail-full">
-                  <span className="wr-detail-label">Title</span>
-                  <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f1714' }}>📌 {selected.title}</span>
+            {/* AI Highlight Banner */}
+            {selected.aiGenerated && (
+              <div style={{ background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#166534', textTransform: 'uppercase' }}>
+                    🤖 Gemini AI Summary
+                  </span>
+                  <span className="ai-confidence-chip">
+                    ✨ {selected.aiConfidence || 94}% AI Confidence
+                  </span>
                 </div>
-              )}
-              <div className="wr-detail-item">
-                <span className="wr-detail-label">Category</span>
-                <span>{selected.category === 'Gaming' ? '🎮' : '🎬'} {selected.category}</span>
+                {selected.aiOriginalPrompt && (
+                  <p style={{ margin: '4px 0', fontSize: '0.84rem', color: '#14532d', fontStyle: 'italic' }}>
+                    "{selected.aiOriginalPrompt}"
+                  </p>
+                )}
               </div>
-              <div className="wr-detail-item">
-                <span className="wr-detail-label">Type</span>
-                <span>{selected.type}</span>
-              </div>
-              {selected.gameName && (
-                <div className="wr-detail-item">
-                  <span className="wr-detail-label">Game</span>
-                  <span>{selected.gameName}</span>
-                </div>
-              )}
-              <div className="wr-detail-item">
-                <span className="wr-detail-label">Budget</span>
-                <span>₹{Number(selected.budget).toLocaleString('en-IN')}</span>
-              </div>
-              <div className="wr-detail-item">
-                <span className="wr-detail-label">Deadline</span>
-                <span>{new Date(selected.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-              </div>
-              <div className="wr-detail-item">
-                <span className="wr-detail-label">Status</span>
-                <span className={`wr-status-badge ${STATUS_BADGE[selected.status]?.cls}`}>
-                  {STATUS_BADGE[selected.status]?.emoji} {selected.status}
-                </span>
-              </div>
-              {selected.materials && (
-                <div className="wr-detail-item wr-detail-full">
-                  <span className="wr-detail-label">Materials</span>
-                  <a href={selected.materials} target="_blank" rel="noreferrer" className="wr-link">
-                    🔗 Open Link
-                  </a>
-                </div>
-              )}
-              {selected.image && (
-                <div className="wr-detail-item wr-detail-full">
-                  <span className="wr-detail-label">Attached Reference Image</span>
-                  <div style={{ marginTop: '6px' }}>
-                    <a href={selected.image} target="_blank" rel="noreferrer">
-                      <img
-                        src={selected.image}
-                        alt="Client Reference Attachment"
-                        style={{ maxWidth: '100%', maxHeight: '220px', borderRadius: '10px', border: '1px solid #cbd5e1', objectFit: 'contain' }}
-                      />
-                    </a>
+            )}
+
+            {!editingScope ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {/* 1. Project Overview Card */}
+                <div className="wr-modal-card">
+                  {selected.title && (
+                    <div style={{ marginBottom: '14px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
+                      <span className="wr-detail-label">Project Title</span>
+                      <h3 className="wr-detail-title" style={{ fontSize: '1.15rem', fontWeight: 800, margin: '4px 0 0' }}>
+                        📌 {selected.title}
+                      </h3>
+                    </div>
+                  )}
+
+                  <div className="wr-detail-grid">
+                    <div className="wr-detail-item">
+                      <span className="wr-detail-label">Category</span>
+                      <span>{selected.category === 'Gaming' ? '🎮' : '🎬'} {selected.category}</span>
+                    </div>
+
+                    <div className="wr-detail-item">
+                      <span className="wr-detail-label">Type & Quantity</span>
+                      <span>{selected.quantity || 1} × {selected.type}</span>
+                    </div>
+
+                    <div className="wr-detail-item">
+                      <span className="wr-detail-label">Budget</span>
+                      <span style={{ fontWeight: 800, color: '#059669', fontSize: '1rem' }}>
+                        ₹{Number(selected.budget).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+
+                    <div className="wr-detail-item">
+                      <span className="wr-detail-label">Deadline</span>
+                      <span>{new Date(selected.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                    </div>
+
+                    <div className="wr-detail-item wr-detail-full">
+                      <span className="wr-detail-label">Current Status</span>
+                      <div style={{ marginTop: '2px' }}>
+                        <span className={`wr-status-badge ${STATUS_BADGE[selected.status]?.cls}`}>
+                          {STATUS_BADGE[selected.status]?.emoji} {selected.status}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )}
-              {selected.remarks && (
-                <div className="wr-detail-item wr-detail-full">
-                  <span className="wr-detail-label">Remarks</span>
-                  <span className="wr-remarks-text">{selected.remarks}</span>
+
+                {/* 2. AI Specifications */}
+                {selected.aiGenerated && selected.specifications && (
+                  <div className="wr-modal-card">
+                    <span className="wr-section-label">⚙️ Specifications</span>
+                    <div className="ai-specs-grid">
+                      {selected.specifications.duration && (
+                        <div className="ai-spec-pill">
+                          <span className="ai-spec-pill-label">Duration</span>
+                          <span className="ai-spec-pill-val">{selected.specifications.duration}</span>
+                        </div>
+                      )}
+                      {selected.specifications.style && (
+                        <div className="ai-spec-pill">
+                          <span className="ai-spec-pill-label">Style</span>
+                          <span className="ai-spec-pill-val">{selected.specifications.style}</span>
+                        </div>
+                      )}
+                      {selected.specifications.platform && (
+                        <div className="ai-spec-pill">
+                          <span className="ai-spec-pill-label">Platform</span>
+                          <span className="ai-spec-pill-val">{selected.specifications.platform}</span>
+                        </div>
+                      )}
+                      <div className="ai-spec-pill">
+                        <span className="ai-spec-pill-label">Subtitles</span>
+                        <span className="ai-spec-pill-val">{selected.specifications.subtitles ? 'Yes (Included)' : 'No'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Deliverables Breakdown */}
+                {selected.deliverablesList && selected.deliverablesList.length > 0 && (
+                  <div className="wr-modal-card">
+                    <span className="wr-section-label">📦 Deliverables ({selected.deliverablesList.length} Items)</span>
+                    <div className="ai-deliverables-list">
+                      {selected.deliverablesList.map((d, idx) => (
+                        <div key={idx} className="ai-deliverable-item">
+                          <span>🎬 {d.name}</span>
+                          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{d.notes || d.type}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Required Assets Checklist */}
+                {selected.requiredAssets && selected.requiredAssets.length > 0 && (
+                  <div className="wr-modal-card">
+                    <span className="wr-section-label">📋 Required Assets Checklist</span>
+                    <div className="ai-assets-list">
+                      {selected.requiredAssets.map((asset, idx) => (
+                        <span key={idx} className="ai-asset-tag">✓ {asset}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 5. Materials / Reference */}
+                {(selected.materials || selected.image) && (
+                  <div className="wr-modal-card">
+                    <span className="wr-section-label">🔗 Materials & Reference</span>
+                    {selected.materials && (
+                      <div style={{ marginBottom: selected.image ? '10px' : 0 }}>
+                        <a href={selected.materials} target="_blank" rel="noreferrer" className="wr-link" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          🔗 Open Materials Link
+                        </a>
+                      </div>
+                    )}
+                    {selected.image && (
+                      <div style={{ marginTop: '8px' }}>
+                        <a href={selected.image} target="_blank" rel="noreferrer">
+                          <img
+                            src={selected.image}
+                            alt="Reference Attachment"
+                            style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', border: '1px solid #cbd5e1', objectFit: 'contain' }}
+                          />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 6. Remarks / Brief Details */}
+                {selected.remarks && (
+                  <div className="wr-modal-card">
+                    <span className="wr-section-label">📝 Remarks / Brief Details</span>
+                    <div className="wr-remarks-box">{selected.remarks}</div>
+                  </div>
+                )}
+
+                {/* 7. Admin Note Input */}
+                <div className="wr-field">
+                  <label className="wr-label" htmlFor="admin-note" style={{ fontWeight: 700, color: '#334155' }}>
+                    Admin Note (optional)
+                  </label>
+                  <textarea
+                    id="admin-note"
+                    className="wr-textarea"
+                    rows={2}
+                    placeholder="Add a note or revision guidance for the client…"
+                    value={note}
+                    onChange={e => setNote(e.target.value)}
+                  />
                 </div>
-              )}
-            </div>
 
-            {/* Admin note */}
-            <div className="wr-field" style={{ marginTop: '1rem' }}>
-              <label className="wr-label" htmlFor="admin-note">Admin Note (optional)</label>
-              <textarea
-                id="admin-note"
-                className="wr-textarea"
-                rows={2}
-                placeholder="Add a note for the client (e.g. revision instructions)…"
-                value={note}
-                onChange={e => setNote(e.target.value)}
-              />
-            </div>
+                {/* 8. Action Buttons */}
+                <div className="wr-detail-actions">
+                  <button
+                    type="button"
+                    className="wr-btn-approve"
+                    onClick={() => handleAction('Approved', selected, note)}
+                    disabled={busy}
+                  >
+                    ✅ Approve & Create Project
+                  </button>
+                  <button
+                    type="button"
+                    className="wr-btn-action-edit"
+                    onClick={() => setEditingScope(true)}
+                    disabled={busy}
+                  >
+                    ✏️ Edit Scope
+                  </button>
+                  <button
+                    type="button"
+                    className="wr-btn-reject"
+                    onClick={() => openRejectModal(selected)}
+                    disabled={busy}
+                  >
+                    ❌ Reject
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Inline Edit Mode for Admin (Step 6) */
+              <form onSubmit={handleSaveScopeEdit} style={{ marginTop: '12px' }}>
+                <div className="wr-field">
+                  <label className="wr-label">Project Title</label>
+                  <input
+                    type="text"
+                    className="wr-input"
+                    value={scopeForm.title}
+                    onChange={e => setScopeForm(prev => ({ ...prev, title: e.target.value }))}
+                    required
+                  />
+                </div>
 
-            {/* Action buttons */}
-            <div className="wr-detail-actions">
-              <button
-                className="wr-btn-approve"
-                onClick={() => handleAction('Approved', selected, note)}
-                disabled={busy}
-              >
-                ✅ Approve
-              </button>
-              <button
-                className="wr-btn-reject"
-                onClick={() => openRejectModal(selected)}
-                disabled={busy}
-              >
-                ❌ Reject Request
-              </button>
-            </div>
+                <div className="wr-row-2">
+                  <div className="wr-field">
+                    <label className="wr-label">Budget (₹)</label>
+                    <input
+                      type="number"
+                      className="wr-input"
+                      value={scopeForm.budget}
+                      onChange={e => setScopeForm(prev => ({ ...prev, budget: e.target.value }))}
+                      required
+                    />
+                  </div>
+
+                  <div className="wr-field">
+                    <label className="wr-label">Deadline</label>
+                    <input
+                      type="date"
+                      className="wr-input"
+                      value={scopeForm.deadline}
+                      onChange={e => setScopeForm(prev => ({ ...prev, deadline: e.target.value }))}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="wr-field">
+                  <label className="wr-label">Remarks / Scope Adjustments</label>
+                  <textarea
+                    className="wr-textarea"
+                    rows={3}
+                    value={scopeForm.remarks}
+                    onChange={e => setScopeForm(prev => ({ ...prev, remarks: e.target.value }))}
+                  />
+                </div>
+
+                <div className="wr-detail-actions" style={{ marginTop: '16px' }}>
+                  <button type="submit" className="wr-btn-approve" disabled={busy}>
+                    💾 Save Changes
+                  </button>
+                  <button
+                    type="button"
+                    className="wr-btn-cancel"
+                    onClick={() => setEditingScope(false)}
+                    disabled={busy}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
 
-      {/* ── Rejection Modal with Textarea & 3 Frequent Replies ────── */}
+      {/* ── Rejection Modal ── */}
       {rejectingModal && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setRejectingModal(null)}>
           <div className="wr-detail-modal wr-reject-modal">
             <div className="wr-modal-header">
               <div>
                 <h2 className="wr-modal-title" style={{ color: '#dc2626' }}>❌ Reject Work Request</h2>
-                <p className="wr-modal-sub">
-                  Client: <strong>{rejectingModal.clientName}</strong> &bull; {rejectingModal.title || rejectingModal.type}
-                </p>
+                <p className="wr-modal-sub">{rejectingModal.clientName} — {rejectingModal.title || rejectingModal.type}</p>
               </div>
               <button className="wr-close-btn" onClick={() => setRejectingModal(null)}>✕</button>
             </div>
 
-            {/* Frequent Quick Replies (3 Options, 2 lines each) */}
-            <div className="wr-frequent-replies-wrap">
-              <label className="wr-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                <span>⚡ Frequent Replies</span>
-                <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#64748b' }}>(Click to insert into text area below)</span>
-              </label>
-              <div className="wr-frequent-grid">
-                {FREQUENT_REJECT_REASONS.map(item => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className="wr-frequent-card"
-                    onClick={() => setRejectReason(`${item.line1}\n${item.line2}`)}
-                  >
-                    <div className="wr-frequent-title">💬 {item.title}</div>
-                    <div className="wr-frequent-line">{item.line1}</div>
-                    <div className="wr-frequent-line">{item.line2}</div>
-                  </button>
-                ))}
-              </div>
+            <p style={{ fontSize: '0.86rem', color: '#64748b', margin: '0 0 10px' }}>
+              Select a reason below or write a custom message to inform the client:
+            </p>
+
+            <div className="wr-reject-reasons-list">
+              {FREQUENT_REJECT_REASONS.map(r => (
+                <div
+                  key={r.id}
+                  className="wr-reject-reason-card"
+                  onClick={() => setRejectReason(`${r.line1} ${r.line2}`)}
+                >
+                  <strong>{r.title}</strong>
+                  <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '2px 0 0' }}>{r.line1}</p>
+                </div>
+              ))}
             </div>
 
-            {/* Textarea for Rejection Reason (custom writing or edited frequent reply) */}
-            <div className="wr-field" style={{ marginTop: '1rem' }}>
-              <label className="wr-label" htmlFor="reject-reason">
-                Rejection Reason <span className="wr-required">*</span>
-              </label>
+            <div className="wr-field" style={{ marginTop: '12px' }}>
+              <label className="wr-label">Rejection Message to Client</label>
               <textarea
-                id="reject-reason"
                 className="wr-textarea"
-                rows={4}
-                placeholder="Write custom rejection reason here, or pick a frequent reply above..."
+                rows={3}
+                placeholder="Reason for rejection..."
                 value={rejectReason}
                 onChange={e => setRejectReason(e.target.value)}
-                autoFocus
               />
             </div>
 
-            {/* Modal actions */}
-            <div className="wr-detail-actions" style={{ marginTop: '1.25rem' }}>
+            <div className="wr-detail-actions">
               <button
+                className="wr-btn-reject"
+                onClick={() => handleAction('Rejected', rejectingModal, rejectReason)}
+                disabled={busy}
+              >
+                Confirm Rejection
+              </button>
+              <button
+                type="button"
                 className="wr-btn-cancel"
                 onClick={() => setRejectingModal(null)}
                 disabled={busy}
               >
                 Cancel
-              </button>
-              <button
-                className="wr-btn-reject"
-                onClick={() => handleAction('Rejected', rejectingModal, rejectReason)}
-                disabled={busy || !rejectReason.trim()}
-              >
-                ❌ Confirm Rejection
               </button>
             </div>
           </div>
@@ -394,4 +609,3 @@ export default function WorkRequestsPanel() {
     </section>
   );
 }
-

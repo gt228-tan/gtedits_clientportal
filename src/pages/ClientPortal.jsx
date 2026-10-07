@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
 import { db, ref, onValue } from '../firebase';
 import { useAuth, BRAND_NAME } from '../contexts/AuthContext';
-import Toast, { showToast }   from '../components/Toast';
-import ChangePasswordModal    from '../components/ChangePasswordModal';
-import WorkRequestForm        from '../components/WorkRequestForm';
+import Toast, { showToast } from '../components/Toast';
+import ChangePasswordModal from '../components/ChangePasswordModal';
+import WorkRequestForm from '../components/WorkRequestForm';
 import DeliverablePreviewModal from '../components/DeliverablePreviewModal';
-import { generateInvoice }   from '../generateInvoice';
+import ThemeToggle from '../components/ThemeToggle';
+import { generateInvoice } from '../generateInvoice';
 import { buildWorkSections, computeTotals, formatDate } from '../utils';
 import { fetchClientRequests } from '../api/workRequests';
 import { fetchClientProjects } from '../api/projects';
@@ -13,24 +14,24 @@ import { fetchClientDeliverables, approveDeliverable, requestRevision, downloadD
 
 const STATUS_CONFIG = {
   // Deliverable statuses
-  awaiting_approval:        { label: 'Awaiting Your Approval', color: 'amber', icon: '🟡' },
-  approved:                 { label: 'Approved',               color: 'green', icon: '✅' },
-  revision_requested:       { label: 'Revision Requested',     color: 'red',   icon: '🔴' },
-  superseded:               { label: 'Superseded',             color: 'muted', icon: '⚫' },
-  draft:                    { label: 'Draft',                  color: 'muted', icon: '⚪' },
+  awaiting_approval: { label: 'Awaiting Your Approval', color: 'amber', icon: '🟡' },
+  approved: { label: 'Approved', color: 'green', icon: '✅' },
+  revision_requested: { label: 'Revision Requested', color: 'red', icon: '🔴' },
+  superseded: { label: 'Superseded', color: 'muted', icon: '⚫' },
+  draft: { label: 'Draft', color: 'muted', icon: '⚪' },
 
   // Project statuses
-  project_created:          { label: 'Project Created',        color: 'muted', icon: '📁' },
+  project_created: { label: 'Project Created', color: 'muted', icon: '📁' },
   awaiting_client_response: { label: 'Awaiting Client Response', color: 'amber', icon: '🟡' },
   awaiting_client_approval: { label: 'Awaiting Client Response', color: 'amber', icon: '🟡' },
-  completed:                { label: 'Completed',              color: 'green', icon: '✅' },
-  approved_by_client:       { label: 'Completed',              color: 'green', icon: '✅' },
+  completed: { label: 'Completed', color: 'green', icon: '✅' },
+  approved_by_client: { label: 'Completed', color: 'green', icon: '✅' },
 };
 
 function formatBytes(b) {
   if (!b) return '';
-  if (b < 1024)          return `${b} B`;
-  if (b < 1024 * 1024)   return `${(b / 1024).toFixed(1)} KB`;
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
   return `${(b / 1024 / 1024).toFixed(2)} MB`;
 }
 
@@ -42,24 +43,38 @@ export default function ClientPortal() {
   const { clientRecord, currentUser, logout, getToken } = useAuth();
   const { clientId, name } = clientRecord || {};
 
-  const [client,           setClient]           = useState(null);
-  const [pdfBusy,          setPdfBusy]          = useState(false);
-  const [showChangePass,   setShowChangePass]   = useState(false);
-  const [showRequestForm,  setShowRequestForm]  = useState(false);
-  const [myRequests,       setMyRequests]       = useState([]);
+  const [client, setClient] = useState(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [showChangePass, setShowChangePass] = useState(false);
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const [myRequests, setMyRequests] = useState([]);
 
   // ── Projects state ─────────────────────────────────────────
-  const [activeTab,       setActiveTab]       = useState('payments'); // 'payments' | 'projects'
-  const [projects,        setProjects]        = useState([]);
+  const [activeTab, setActiveTab] = useState('payments'); // 'payments' | 'projects'
+  const [projects, setProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
-  const [deliverables,    setDeliverables]    = useState([]);
-  const [dlvLoading,      setDlvLoading]      = useState(false);
-  const [previewTarget,   setPreviewTarget]   = useState(null);
-  const [revisionModal,   setRevisionModal]   = useState(null); // deliverable being revised
-  const [revisionDesc,    setRevisionDesc]    = useState('');
-  const [actionBusy,      setActionBusy]      = useState(false);
-  const [downloading,     setDownloading]     = useState(false);
+  const [deliverables, setDeliverables] = useState([]);
+  const [dlvLoading, setDlvLoading] = useState(false);
+  const [previewTarget, setPreviewTarget] = useState(null);
+  const [revisionModal, setRevisionModal] = useState(null); // deliverable being revised
+  const [revisionDesc, setRevisionDesc] = useState('');
+  const [actionBusy, setActionBusy] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  // ── Calendly meeting link ──────────────────────────────────
+  const [globalCalendlyUrl, setGlobalCalendlyUrl] = useState(import.meta.env.VITE_CALENDLY_URL || 'https://calendly.com');
+
+  useEffect(() => {
+    const unsub = onValue(ref(db, 'settings/calendlyUrl'), (snap) => {
+      if (snap.exists() && snap.val()) {
+        setGlobalCalendlyUrl(snap.val());
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const meetingUrl = client?.calendlyUrl || globalCalendlyUrl;
 
   // ── Real-time client data ──────────────────────────────────
   useEffect(() => {
@@ -90,7 +105,7 @@ export default function ClientPortal() {
     setProjectsLoading(true);
     try {
       const token = await getToken();
-      const data  = await fetchClientProjects(token);
+      const data = await fetchClientProjects(token);
       setProjects(data);
     } catch (err) {
       showToast(`❌ ${err.message}`, 'warn');
@@ -109,7 +124,7 @@ export default function ClientPortal() {
     setDlvLoading(true);
     try {
       const token = await getToken();
-      const data  = await fetchClientDeliverables(selectedProject._id, token);
+      const data = await fetchClientDeliverables(selectedProject._id, token);
       setDeliverables(data);
     } catch (err) {
       showToast(`❌ ${err.message}`, 'warn');
@@ -121,12 +136,12 @@ export default function ClientPortal() {
   useEffect(() => { loadDeliverables(); }, [loadDeliverables]);
 
   const [workTab, setWorkTab] = useState('Remaining');
-  const work          = client ? Object.entries(client.work || {}).map(([id, w]) => ({ id, ...w })) : [];
-  const totals        = computeTotals(work);
+  const work = client ? Object.entries(client.work || {}).map(([id, w]) => ({ id, ...w })) : [];
+  const totals = computeTotals(work);
   const remainingWork = work.filter(w => (w.status || 'Pending') !== 'Paid');
-  const paidWork      = work.filter(w => (w.status || 'Pending') === 'Paid');
-  const displayWork   = workTab === 'Remaining' ? remainingWork : workTab === 'Paid' ? paidWork : work;
-  const sections      = buildWorkSections(displayWork);
+  const paidWork = work.filter(w => (w.status || 'Pending') === 'Paid');
+  const displayWork = workTab === 'Remaining' ? remainingWork : workTab === 'Paid' ? paidWork : work;
+  const sections = buildWorkSections(displayWork);
 
   const handleDownloadInvoice = async () => {
     if (!client) { showToast('⚠️ No data to export', 'warn'); return; }
@@ -254,7 +269,20 @@ export default function ClientPortal() {
           >
             <span>📱</span> QR Pay
           </button>
+          <a
+            href={meetingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="sidebar-item"
+            style={{ textDecoration: 'none' }}
+          >
+            <span>📅</span> Book Meeting
+          </a>
         </nav>
+
+        <div className="sidebar-footer">
+          <ThemeToggle />
+        </div>
       </aside>
 
       {/* ── Main ── */}
@@ -287,6 +315,15 @@ export default function ClientPortal() {
                   <button className="btn-invoice" onClick={handleDownloadInvoice} disabled={pdfBusy}>
                     {pdfBusy ? '⏳ Generating…' : '⬇ Invoice'}
                   </button>
+                  <a
+                    href={meetingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-invoice"
+                    title="Book a meeting on Calendly"
+                  >
+                    📅 Book Meeting
+                  </a>
                   <button className="btn-new-request" onClick={() => setShowRequestForm(true)}>
                     ✏️ New Request
                   </button>
@@ -368,28 +405,28 @@ export default function ClientPortal() {
                             <td colSpan={7}>{section.label}</td>
                           </tr>
                           {section.rows.map((w, i) => {
-                            const qty       = Number(w.qty || 1);
-                            const price     = Number(w.price || w.amt || 0);
+                            const qty = Number(w.qty || 1);
+                            const price = Number(w.price || w.amt || 0);
                             const lineTotal = qty * price;
-                            const status    = w.status || 'Pending';
-                            const advAmt    = Number(w.advance || 0);
-                            const amtDue    = status === 'Pending' ? lineTotal
-                                            : status === 'Advance' ? lineTotal - advAmt : 0;
+                            const status = w.status || 'Pending';
+                            const advAmt = Number(w.advance || 0);
+                            const amtDue = status === 'Pending' ? lineTotal
+                              : status === 'Advance' ? lineTotal - advAmt : 0;
                             return (
                               <tr key={w.id}>
-                                <td className="col-num"  data-label="#">{i + 1}</td>
+                                <td className="col-num" data-label="#">{i + 1}</td>
                                 <td className="col-desc" data-label="Description">
                                   {w.desc}
                                   {w.date && <><br /><small className="row-date">{formatDate(w.date)}</small></>}
                                 </td>
-                                <td className="col-num"  data-label="Qty">{qty}</td>
-                                <td className="col-amt"  data-label="Unit Price">₹{price.toLocaleString('en-IN')}</td>
+                                <td className="col-num" data-label="Qty">{qty}</td>
+                                <td className="col-amt" data-label="Unit Price">₹{price.toLocaleString('en-IN')}</td>
                                 <td className="col-amt col-total" data-label="Total">₹{lineTotal.toLocaleString('en-IN')}</td>
                                 <td className="col-status" data-label="Status">
                                   <span className={`badge badge-${status.toLowerCase()}`}>
                                     {status === 'Pending' ? '⏳ Pending'
-                                     : status === 'Advance' ? '💰 Advance'
-                                     : '✅ Paid'}
+                                      : status === 'Advance' ? '💰 Advance'
+                                        : '✅ Paid'}
                                   </span>
                                 </td>
                                 <td className="col-amt col-due" data-label="Amount Due">
@@ -427,7 +464,7 @@ export default function ClientPortal() {
                     <div key={r._id} className="wr-client-card">
                       <div className="wr-client-card-top">
                         <div>
-                          {r.title && <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0f1714', marginBottom: '4px' }}>📌 {r.title}</div>}
+                          {r.title && <div className="wr-client-card-title" style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '4px' }}>📌 {r.title}</div>}
                           <span className={`wr-cat-chip ${r.category === 'Gaming' ? 'chip-gaming' : 'chip-other'}`}>
                             {r.category === 'Gaming' ? '🎮' : '🎬'} {r.category}
                           </span>

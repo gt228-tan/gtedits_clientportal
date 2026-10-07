@@ -4,7 +4,7 @@ import { BRAND_NAME }      from '../contexts/AuthContext';
 import { showToast }       from './Toast';
 import { useState, Fragment } from 'react';
 
-export default function ClientPreviewModal({ clientName, work, onClose }) {
+export default function ClientPreviewModal({ clientName, work, calendlyUrl, onClose }) {
   const [pdfBusy, setPdfBusy] = useState(false);
   const [workTab, setWorkTab] = useState('Remaining'); // 'Remaining' | 'Paid' | 'All'
 
@@ -43,6 +43,15 @@ export default function ClientPreviewModal({ clientName, work, onClose }) {
             <button className="btn-invoice" onClick={handleDownload} disabled={pdfBusy}>
               {pdfBusy ? '⏳…' : '⬇ Invoice'}
             </button>
+            <a
+              href={calendlyUrl || import.meta.env.VITE_CALENDLY_URL || 'https://calendly.com'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-invoice"
+              title="Book a meeting on Calendly"
+            >
+              📅 Book Meeting
+            </a>
             <button className="modal-close" onClick={onClose}>✕</button>
           </div>
         </div>

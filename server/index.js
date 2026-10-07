@@ -6,6 +6,7 @@ const connectDB     = require('./config/db');
 const workRequests  = require('./routes/workRequests');
 const projects      = require('./routes/projects');
 const deliverables  = require('./routes/deliverables');
+const aiPlanner     = require('./routes/aiPlanner');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -32,6 +33,7 @@ app.use(async (_req, _res, next) => {
 // ── Routes ───────────────────────────────────────────────────
 app.use('/api/work-requests', workRequests);
 app.use('/api/projects',      projects);      // /api/projects/...
+app.use('/api/ai-planner',    aiPlanner);     // /api/ai-planner/analyze
 app.use('/api',               deliverables);  // /api/deliverables/..., /api/projects/:id/deliverables/...
 
 // ── Health check ─────────────────────────────────────────────
