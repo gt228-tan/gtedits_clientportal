@@ -35,12 +35,26 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
   const [clarificationAnswers, setClarificationAnswers] = useState({});
   const [aiPlan,           setAiPlan]           = useState(null);
   const [aiConfidence,     setAiConfidence]     = useState(null);
+  const getMinDateTime = () => {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  };
+
+  const getDefaultDeadline24h = () => {
+    const target = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(target.getDate())}T${pad(target.getHours())}:${pad(target.getMinutes())}`;
+  };
+
   const [planForm,         setPlanForm]         = useState({
     title: '',
     budget: '',
     deadline: '',
     materials: '',
   });
+  const [refinePrompt,     setRefinePrompt]     = useState('');
+  const [showEditBrief,    setShowEditBrief]    = useState(false);
 
   const typeOptions = form.category === 'Gaming' ? GAMING_TYPES
                     : form.category === 'Other'  ? OTHER_TYPES
@@ -147,17 +161,58 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
         setAiPlan(res.plan);
         setAiConfidence(res.confidenceScore || 94);
 
-        // Prepopulate plan confirmation values
-        const defaultDeadline = res.plan.deadlineSuggested
-          ? res.plan.deadlineSuggested.split('T')[0]
-          : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        // Prepopulate plan confirmation values (default 24h deadline with time)
+        const defaultDeadline = getDefaultDeadline24h();
 
+        const calculatedCost = res.plan.costEstimation?.totalEstimatedCost || res.plan.estimatedBudget || 800;
         setPlanForm({
           title: res.plan.title || `${res.plan.type} Project`,
-          budget: res.plan.estimatedBudget ? String(res.plan.estimatedBudget) : '1500',
+          budget: String(calculatedCost),
           deadline: defaultDeadline,
           materials: aiMaterials || '',
         });
+      }
+    } catch (err) {
+      showToast(`❌ ${err.message}`, 'warn');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleRefineAiPlan = async (customInstruction = '') => {
+    const instruction = (customInstruction || refinePrompt).trim();
+    if (!instruction) {
+      showToast('⚠️ Please enter the changes or adjustments you need', 'warn');
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      const res = await analyzeWorkPrompt({
+        prompt: aiPrompt.trim(),
+        clarifications: [],
+        clientName,
+        refinement: instruction,
+        previousPlan: aiPlan,
+      });
+
+      if (res.plan) {
+        setAiMissingQuestions([]);
+        setAiPlan(res.plan);
+        setAiConfidence(res.confidenceScore || 95);
+
+        const calculatedCost = res.plan.costEstimation?.totalEstimatedCost || res.plan.estimatedBudget || 800;
+        setPlanForm(prev => ({
+          ...prev,
+          title: res.plan.title || prev.title,
+          budget: String(calculatedCost),
+        }));
+
+        setRefinePrompt('');
+        setShowEditBrief(false);
+        showToast('✨ AI Project Plan updated with your requested changes!');
+      } else if (res.missingQuestions && res.missingQuestions.length > 0) {
+        setAiMissingQuestions(res.missingQuestions);
       }
     } catch (err) {
       showToast(`❌ ${err.message}`, 'warn');
@@ -198,6 +253,7 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
         requiredAssets: aiPlan.requiredAssets || [],
         suggestedWorkflow: aiPlan.suggestedWorkflow || [],
         deliverablesList: aiPlan.deliverablesList || [],
+        costEstimation: aiPlan.costEstimation || null,
       });
 
       showToast('🎉 AI Project Plan submitted successfully!');
@@ -407,6 +463,90 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
                     )}
                   </div>
 
+                  {/* ── Refine / Edit Brief Section ── */}
+                  <div className="ai-refine-panel">
+                    <div className="ai-refine-header">
+                      <div className="ai-refine-title-wrap">
+                        <span className="ai-refine-icon">✨</span>
+                        <div>
+                          <strong className="ai-refine-title">
+                            Need changes to this plan?
+                          </strong>
+                          <span className="ai-refine-sub">
+                            Type adjustments below (e.g. change quantity, style, or add items) — AI updates everything
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="ai-refine-toggle-btn"
+                        onClick={() => setShowEditBrief(prev => !prev)}
+                        disabled={aiLoading}
+                      >
+                        {showEditBrief ? '✕ Close Full Brief' : '📝 Edit Full Brief'}
+                      </button>
+                    </div>
+
+                    {showEditBrief ? (
+                      <div className="ai-refine-full-edit">
+                        <label className="wr-label" style={{ fontSize: '0.78rem', marginBottom: '4px' }}>
+                          Edit Original Prompt / Full Brief:
+                        </label>
+                        <textarea
+                          className="wr-textarea"
+                          rows={3}
+                          value={aiPrompt}
+                          onChange={e => setAiPrompt(e.target.value)}
+                          placeholder="Edit your full project brief here..."
+                          disabled={aiLoading}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
+                          <button
+                            type="button"
+                            className="ai-btn-refine"
+                            onClick={() => handleGenerateAiPlan(false)}
+                            disabled={aiLoading || !aiPrompt.trim()}
+                          >
+                            {aiLoading ? (
+                              <><span className="wr-spinner"></span> Updating Plan with AI...</>
+                            ) : (
+                              '🔄 Regenerate Plan with Updated Brief'
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="ai-refine-input-row">
+                        <input
+                          type="text"
+                          className="wr-input"
+                          placeholder="e.g. Actually make it 5 reels instead of 3, add 2 thumbnails, faster pacing…"
+                          value={refinePrompt}
+                          onChange={e => setRefinePrompt(e.target.value)}
+                          disabled={aiLoading}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && refinePrompt.trim() && !aiLoading) {
+                              e.preventDefault();
+                              handleRefineAiPlan();
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="ai-btn-refine"
+                          onClick={() => handleRefineAiPlan()}
+                          disabled={aiLoading || !refinePrompt.trim()}
+                        >
+                          {aiLoading ? (
+                            <><span className="wr-spinner"></span> Updating...</>
+                          ) : (
+                            '✨ Update Plan'
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Deliverables Breakdown */}
                   <div style={{ marginBottom: '14px' }}>
                     <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', textTransform: 'uppercase' }}>
@@ -485,6 +625,82 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
                     </div>
                   )}
 
+                  {/* ── AI Rate Card Cost Estimation Breakdown Card ── */}
+                  {aiPlan.costEstimation && (
+                    <div className="ai-cost-estimation-card" style={{ marginBottom: '18px' }}>
+                      <div className="ai-cost-estimation-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '1.1rem' }}>💰</span>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Rate Card Cost Estimation
+                          </span>
+                        </div>
+                        <span className="ai-rate-badge">
+                          GT Edits Rate Card
+                        </span>
+                      </div>
+
+                      <div className="ai-cost-items-table">
+                        {(aiPlan.costEstimation.breakdown || []).map((b, idx) => (
+                          <div key={idx} className="ai-cost-item-row">
+                            <div className="ai-cost-item-name">
+                              <strong>{b.item || b.type}</strong>
+                              {b.notes && <span className="ai-cost-item-notes">{b.notes}</span>}
+                            </div>
+                            <div className="ai-cost-item-qty">
+                              {b.quantity} × ₹{Number(b.unitRate).toLocaleString('en-IN')}
+                            </div>
+                            <div className="ai-cost-item-subtotal">
+                              ₹{Number(b.total).toLocaleString('en-IN')}
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Free Subtitles Row */}
+                        {(aiPlan.specifications?.subtitles || aiPlan.costEstimation.subtitlesIncludedFree) && (
+                          <div className="ai-cost-item-row ai-cost-free-row">
+                            <div className="ai-cost-item-name">
+                              <strong>✨ Animated Subtitles & Captions</strong>
+                              <span className="ai-cost-item-notes">Synced captions included for all deliverables</span>
+                            </div>
+                            <div className="ai-cost-item-qty">
+                              Included
+                            </div>
+                            <div className="ai-cost-item-subtotal ai-cost-free-tag">
+                              FREE (₹0)
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Rush delivery fee if any */}
+                        {Number(aiPlan.costEstimation.rushFee) > 0 && (
+                          <div className="ai-cost-item-row">
+                            <div className="ai-cost-item-name">
+                              <strong>⚡ Express Turnaround</strong>
+                              <span className="ai-cost-item-notes">Priority queue delivery</span>
+                            </div>
+                            <div className="ai-cost-item-qty">Rush</div>
+                            <div className="ai-cost-item-subtotal">
+                              +₹{Number(aiPlan.costEstimation.rushFee).toLocaleString('en-IN')}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="ai-cost-total-bar">
+                        <div className="ai-cost-total-label">
+                          <span>Total Estimated Cost</span>
+                          {aiPlan.costEstimation.pricingExplanation && (
+                            <small className="ai-cost-total-sub">{aiPlan.costEstimation.pricingExplanation}</small>
+                          )}
+                        </div>
+                        <div className="ai-cost-total-val">
+                          ₹{Number(aiPlan.costEstimation.totalEstimatedCost).toLocaleString('en-IN')}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Editable Submission Details */}
                   <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginTop: '16px' }}>
                     <div className="wr-field">
@@ -513,11 +729,11 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
                       </div>
 
                       <div className="wr-field">
-                        <label className="wr-label">Deadline <span className="wr-required">*</span></label>
+                        <label className="wr-label">Deadline & Time <span className="wr-required">*</span></label>
                         <input
-                          type="date"
+                          type="datetime-local"
                           className="wr-input"
-                          min={new Date().toISOString().split('T')[0]}
+                          min={getMinDateTime()}
                           value={planForm.deadline}
                           onChange={e => setPlanForm(prev => ({ ...prev, deadline: e.target.value }))}
                           required
@@ -534,6 +750,54 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
                         value={planForm.materials}
                         onChange={e => setPlanForm(prev => ({ ...prev, materials: e.target.value }))}
                       />
+                    </div>
+
+                    {/* Reference Image Upload in AI Confirmation Panel */}
+                    <div className="wr-field">
+                      <label className="wr-label">
+                        Reference Image <span className="wr-hint">(Optional, max 50 MB)</span>
+                      </label>
+                      {!imagePreview ? (
+                        <div
+                          className={`wr-file-upload-box${isDragging ? ' dragging' : ''}`}
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
+                        >
+                          <input
+                            type="file"
+                            id="wr-ai-image-input"
+                            accept="image/*"
+                            onChange={handleImageChange}
+                            style={{ display: 'none' }}
+                          />
+                          <label htmlFor="wr-ai-image-input" className="wr-file-upload-label">
+                            <div className="wr-upload-icon-circle">🖼️</div>
+                            <div className="wr-upload-text-group">
+                              <span className="wr-upload-main-text">Click or Drag & Drop Reference Image</span>
+                              <span className="wr-upload-sub-text">PNG, JPG, WEBP, GIF up to 50 MB</span>
+                            </div>
+                          </label>
+                        </div>
+                      ) : (
+                        <div className="wr-image-preview-wrap">
+                          <div className="wr-preview-img-container">
+                            <img src={imagePreview} alt="Reference preview" className="wr-image-preview-img" />
+                          </div>
+                          <div className="wr-image-preview-meta">
+                            <span className="wr-image-preview-name">{imageFile?.name || 'Attached Reference Image'}</span>
+                            {imageFile?.size && (
+                              <span className="wr-image-preview-badge">
+                                📦 {(imageFile.size / (1024 * 1024)).toFixed(2)} MB
+                              </span>
+                            )}
+                            <button type="button" className="wr-image-remove-btn" onClick={removeImage}>
+                              ✕ Remove Image
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {errors.image && <span className="wr-error">{errors.image}</span>}
                     </div>
                   </div>
                 </div>

@@ -787,6 +787,62 @@ a:hover { color: var(--accent-light); }
 .ai-deliverables-list { display: flex; flex-direction: column; gap: 6px; }
 .ai-deliverable-item { background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; font-weight: 600; color: var(--text); }
 
+/* ── AI Rate Card Cost Estimation Card ── */
+.ai-cost-estimation-card { background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 14px 16px; overflow: hidden; }
+.ai-cost-estimation-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+.ai-rate-badge { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 9999px; }
+.ai-cost-items-table { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.ai-cost-item-row { display: flex; justify-content: space-between; align-items: center; background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 0.84rem; gap: 10px; }
+.ai-cost-item-name { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.ai-cost-item-name strong { color: var(--text); font-size: 0.85rem; }
+.ai-cost-item-notes { font-size: 0.75rem; color: var(--text-muted); }
+.ai-cost-item-qty { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
+.ai-cost-item-subtotal { font-weight: 800; color: var(--text); font-size: 0.9rem; }
+.ai-cost-free-row { background: #f0fdf4; border-color: #bbf7d0; }
+.ai-cost-free-tag { color: #15803d; font-weight: 800; background: #dcfce7; padding: 2px 8px; border-radius: 6px; font-size: 0.78rem; }
+.ai-cost-total-bar { display: flex; justify-content: space-between; align-items: center; border-top: 1.5px dashed #cbd5e1; padding-top: 10px; margin-top: 4px; }
+.ai-cost-total-label { display: flex; flex-direction: column; gap: 2px; }
+.ai-cost-total-label span { font-size: 0.88rem; font-weight: 800; color: var(--text); }
+.ai-cost-total-sub { font-size: 0.74rem; color: var(--text-muted); line-height: 1.35; max-width: 320px; }
+.ai-cost-total-val { font-size: 1.25rem; font-weight: 900; color: #059669; }
+
+/* Dark Mode Overrides */
+[data-theme="dark"] .ai-cost-estimation-card { background: #0d151c; border-color: #1e293b; }
+[data-theme="dark"] .ai-rate-badge { background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.3); color: #60a5fa; }
+[data-theme="dark"] .ai-cost-item-row { background: #111c24; border-color: #1e293b; }
+[data-theme="dark"] .ai-cost-free-row { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.25); }
+[data-theme="dark"] .ai-cost-free-tag { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+[data-theme="dark"] .ai-cost-total-bar { border-top-color: #1e293b; }
+[data-theme="dark"] .ai-cost-total-val { color: #10b981; }
+
+/* ── AI Refine / Update Brief Panel ── */
+.ai-refine-panel { background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+.ai-refine-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.ai-refine-title-wrap { display: flex; align-items: center; gap: 8px; flex: 1; }
+.ai-refine-icon { font-size: 1.15rem; }
+.ai-refine-title { font-size: 0.86rem; color: #166534; display: block; font-weight: 800; }
+.ai-refine-sub { font-size: 0.74rem; color: #15803d; display: block; margin-top: 1px; }
+.ai-refine-toggle-btn { background: #ffffff; border: 1px solid #86efac; color: #15803d; border-radius: 9999px; padding: 4px 12px; font-size: 0.74rem; font-weight: 700; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+.ai-refine-toggle-btn:hover { background: #dcfce7; border-color: #4ade80; }
+.ai-refine-input-row { display: flex; gap: 8px; align-items: center; }
+.ai-refine-input-row .wr-input { background: #ffffff; border-color: #86efac; font-size: 0.85rem; padding: 9px 12px; }
+.ai-refine-input-row .wr-input:focus { border-color: #16a34a; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15); }
+.ai-btn-refine { background: #16a34a; color: #ffffff; border: none; border-radius: 8px; padding: 9px 16px; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: all 0.2s; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.ai-btn-refine:hover:not(:disabled) { background: #15803d; transform: translateY(-1px); }
+.ai-btn-refine:disabled { opacity: 0.6; cursor: not-allowed; }
+.ai-refine-full-edit { margin-top: 6px; }
+.ai-refine-full-edit .wr-textarea { background: #ffffff; border-color: #86efac; font-size: 0.84rem; }
+
+/* Dark Mode Overrides for Refine Panel */
+[data-theme="dark"] .ai-refine-panel { background: rgba(22, 101, 52, 0.18); border-color: rgba(34, 197, 94, 0.3); }
+[data-theme="dark"] .ai-refine-title { color: #4ade80; }
+[data-theme="dark"] .ai-refine-sub { color: #86efac; }
+[data-theme="dark"] .ai-refine-toggle-btn { background: #0f172a; border-color: rgba(34, 197, 94, 0.3); color: #86efac; }
+[data-theme="dark"] .ai-refine-input-row .wr-input,
+[data-theme="dark"] .ai-refine-full-edit .wr-textarea { background: #0d151c; border-color: rgba(34, 197, 94, 0.3); color: #f1f5f9; }
+[data-theme="dark"] .ai-btn-refine { background: #059669; }
+[data-theme="dark"] .ai-btn-refine:hover:not(:disabled) { background: #10b981; }
+
 /* ── Modals ───────────────────────────────────────────────────── */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
 .modal-box { background: #ffffff; border-radius: 16px; border: 1px solid var(--border); width: 100%; max-width: 820px; max-height: 88vh; overflow-y: auto; box-shadow: 0 25px 60px rgba(0,0,0,0.25); padding: 26px; color: var(--text); animation: modalFade .2s ease; }

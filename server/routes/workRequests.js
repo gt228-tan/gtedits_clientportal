@@ -218,7 +218,7 @@ router.post('/', async (req, res) => {
       clientId, clientFirebaseUid, clientName, title, category, type, gameName,
       materials, image, budget, deadline, remarks, notificationEmail, contactEmail,
       aiGenerated, aiConfidence, aiOriginalPrompt, quantity, specifications,
-      requiredAssets, suggestedWorkflow, deliverablesList
+      requiredAssets, suggestedWorkflow, deliverablesList, costEstimation
     } = req.body;
     
     // Auto-save notification email to client record in RTDB & MongoDB if provided
@@ -261,6 +261,7 @@ router.post('/', async (req, res) => {
       requiredAssets: Array.isArray(requiredAssets) ? requiredAssets : [],
       suggestedWorkflow: Array.isArray(suggestedWorkflow) ? suggestedWorkflow : [],
       deliverablesList: Array.isArray(deliverablesList) ? deliverablesList : [],
+      costEstimation: costEstimation && typeof costEstimation === 'object' ? costEstimation : undefined,
     });
 
     // Send email notification to admin asynchronously

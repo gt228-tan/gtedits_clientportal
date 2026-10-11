@@ -221,7 +221,7 @@ export default function WorkRequestsPanel() {
                       {r.gameName || r.specifications?.platform || '—'}
                     </td>
                     <td data-label="Budget">₹{Number(r.budget).toLocaleString('en-IN')}</td>
-                    <td data-label="Deadline">{new Date(r.deadline).toLocaleDateString('en-IN')}</td>
+                    <td data-label="Deadline">{new Date(r.deadline).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}</td>
                     <td data-label="Status">
                       <span className={`wr-status-badge ${badge.cls}`}>
                         {badge.emoji} {r.status}
@@ -331,7 +331,7 @@ export default function WorkRequestsPanel() {
 
                     <div className="wr-detail-item">
                       <span className="wr-detail-label">Deadline</span>
-                      <span>{new Date(selected.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                      <span>{new Date(selected.deadline).toLocaleString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</span>
                     </div>
 
                     <div className="wr-detail-item wr-detail-full">
@@ -387,6 +387,61 @@ export default function WorkRequestsPanel() {
                           <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{d.notes || d.type}</span>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* AI Cost Estimation Breakdown */}
+                {selected.costEstimation && selected.costEstimation.breakdown && selected.costEstimation.breakdown.length > 0 && (
+                  <div className="wr-modal-card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span className="wr-section-label" style={{ margin: 0 }}>💰 AI Rate Card Estimation</span>
+                      <span className="ai-rate-badge">Rate Card Verified</span>
+                    </div>
+                    <div className="ai-cost-items-table">
+                      {selected.costEstimation.breakdown.map((b, idx) => (
+                        <div key={idx} className="ai-cost-item-row">
+                          <div className="ai-cost-item-name">
+                            <strong>{b.item || b.type}</strong>
+                            {b.notes && <span className="ai-cost-item-notes">{b.notes}</span>}
+                          </div>
+                          <div className="ai-cost-item-qty">
+                            {b.quantity} × ₹{Number(b.unitRate).toLocaleString('en-IN')}
+                          </div>
+                          <div className="ai-cost-item-subtotal">
+                            ₹{Number(b.total).toLocaleString('en-IN')}
+                          </div>
+                        </div>
+                      ))}
+                      {(selected.specifications?.subtitles || selected.costEstimation.subtitlesIncludedFree) && (
+                        <div className="ai-cost-item-row ai-cost-free-row">
+                          <div className="ai-cost-item-name">
+                            <strong>✨ Subtitles & Captions</strong>
+                          </div>
+                          <div className="ai-cost-item-qty">Included</div>
+                          <div className="ai-cost-item-subtotal ai-cost-free-tag">FREE (₹0)</div>
+                        </div>
+                      )}
+                      {Number(selected.costEstimation.rushFee) > 0 && (
+                        <div className="ai-cost-item-row">
+                          <div className="ai-cost-item-name">
+                            <strong>⚡ Express Delivery Fee</strong>
+                          </div>
+                          <div className="ai-cost-item-qty">Rush</div>
+                          <div className="ai-cost-item-subtotal">+₹{Number(selected.costEstimation.rushFee).toLocaleString('en-IN')}</div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="ai-cost-total-bar" style={{ marginTop: '10px' }}>
+                      <div className="ai-cost-total-label">
+                        <span>Calculated Rate Total</span>
+                        {selected.costEstimation.pricingExplanation && (
+                          <small className="ai-cost-total-sub">{selected.costEstimation.pricingExplanation}</small>
+                        )}
+                      </div>
+                      <div className="ai-cost-total-val">
+                        ₹{Number(selected.costEstimation.totalEstimatedCost).toLocaleString('en-IN')}
+                      </div>
                     </div>
                   </div>
                 )}

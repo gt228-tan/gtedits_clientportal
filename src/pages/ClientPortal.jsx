@@ -477,7 +477,7 @@ export default function ClientPortal() {
                       </div>
                       <div className="wr-client-card-body">
                         <span>💰 ₹{Number(r.budget).toLocaleString('en-IN')}</span>
-                        <span>📅 {new Date(r.deadline).toLocaleDateString('en-IN')}</span>
+                        <span>📅 {new Date(r.deadline).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</span>
                         {r.materials && (
                           <a href={r.materials} target="_blank" rel="noreferrer" className="wr-link">🔗 Materials</a>
                         )}

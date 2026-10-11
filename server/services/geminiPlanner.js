@@ -1,4 +1,5 @@
 const { GoogleGenAI } = require('@google/genai');
+const RATE_CARD = require('../config/rateCard');
 
 /**
  * Lazy-load or initialize Gemini instance using server environment variables.
@@ -13,14 +14,16 @@ function getGeminiClient() {
 
 /**
  * Analyzes natural language client input and either requests missing details
- * or generates a structured Project Plan.
+ * or generates a structured Project Plan with an accurate cost estimation based on the agency rate card.
  *
  * @param {Object} params
  * @param {string} params.prompt - Natural language request from client
  * @param {Array<{question: string, answer: string}>} [params.clarifications] - Follow-up Q&A history
  * @param {string} [params.clientName] - Client name context
+ * @param {string} [params.refinement] - Any requested changes to an existing plan
+ * @param {Object} [params.previousPlan] - Previously generated plan context
  */
-async function analyzeAndPlanWorkRequest({ prompt, clarifications = [], clientName = '' }) {
+async function analyzeAndPlanWorkRequest({ prompt, clarifications = [], clientName = '', refinement = '', previousPlan = null }) {
   const ai = getGeminiClient();
 
   const conversationContext = clarifications.length > 0
@@ -45,14 +48,44 @@ Your job:
 
 2. Evaluate completeness:
    - If the request is too vague to form any sensible plan (e.g., just "make video" or "edit footage" without context), set "isComplete": false and provide at most 2 polite, concise clarifying questions in "missingQuestions".
-   - If previous clarifications are already provided, or if the initial prompt has enough context to form an actionable plan, set "isComplete": true and "missingQuestions": [].
+   - If previous clarifications or refinements are provided, or if the prompt has enough context to form an actionable plan, set "isComplete": true and "missingQuestions": [].
 
-3. Generate the structured Project Plan (when isComplete is true):
+3. AGENCY RATE CHARGES & COST ESTIMATION RULES (Strictly enforce these rates in INR ₹):
+   - You MUST compute a realistic, transparent cost estimation using GT Edits rate charges:
+     * Reels / Shorts / Instagram Reels: ₹800 per reel
+     * Gaming Highlights / Montage: ₹1,500 per video
+     * Gaming Clip / Short: ₹1,000 per item
+     * Long-form Video / YouTube Video: ₹2,000 per video
+     * Thumbnail: ₹600 per design
+     * Poster: ₹500 per design
+     * Banner: ₹600 per design
+     * Social Media Package: ₹2,500
+     * Other custom creative item: ₹1,000 per item
+   - SUBTITLES / CAPTIONS:
+     * SUBTITLES ARE 100% FREE (₹0 EXTRA). NEVER charge any extra fee for subtitles or captions. Always mark subtitles as "Free (Included)".
+   - RUSH FEE:
+     * 0 unless the client explicitly demands delivery in under 48 hours (+25% urgent fee).
+
+4. PLAN REFINEMENTS & MODIFICATIONS:
+   - If the client requests modifications to an existing plan (e.g. changing quantity, changing style, adding deliverables, adjusting scope), update the plan, deliverables list, and rate card cost estimation accordingly.
+
+5. Generate the structured Project Plan (when isComplete is true):
    - "title": Clean, professional project title
    - "summary": 1-2 sentence executive summary
-   - "deliverablesList": array of specific items, e.g. [{"name": "Reel 1 - Key Moments", "type": "Reel", "notes": "30s fast cut with captions"}]
-   - "suggestedWorkflow": 3-4 progressive milestones (e.g. ["1. Raw Footage Ingestion & Selection", "2. Rough Cut & Pacing", "3. Subtitles, SFX & Color Grade", "4. Final Review & Delivery"])
+   - "deliverablesList": array of specific items, e.g. [{"name": "Reel 1 - Key Moments", "type": "Reel", "notes": "30s fast cut with captions", "estimatedRate": 800}]
+   - "suggestedWorkflow": 3-4 progressive milestones
    - "confidenceScore": Integer between 85 and 98 reflecting AI confidence in parsing the brief.
+   - "costEstimation":
+     * "currency": "INR"
+     * "currencySymbol": "₹"
+     * "breakdown": [
+         { "item": string, "type": string, "quantity": number, "unitRate": number, "total": number, "notes": string }
+       ]
+     * "subtitlesIncludedFree": boolean (true if subtitles requested, cost is 0)
+     * "rushFee": number (0 if standard)
+     * "totalEstimatedCost": number (sum of items + rush fee)
+     * "pricingExplanation": string (clear 1-2 sentence client explanation of how the quote was calculated)
+   - "estimatedBudget": same number as totalEstimatedCost
 
 You MUST respond strictly with valid JSON conforming to the following structure:
 {
@@ -75,15 +108,32 @@ You MUST respond strictly with valid JSON conforming to the following structure:
     "requiredAssets": string[],
     "suggestedWorkflow": string[],
     "deliverablesList": [
-      { "name": string, "type": string, "notes": string }
+      { "name": string, "type": string, "notes": string, "estimatedRate": number }
     ],
+    "costEstimation": {
+      "currency": "INR",
+      "currencySymbol": "₹",
+      "breakdown": [
+        { "item": string, "type": string, "quantity": number, "unitRate": number, "total": number, "notes": string }
+      ],
+      "subtitlesIncludedFree": boolean,
+      "rushFee": number,
+      "totalEstimatedCost": number,
+      "pricingExplanation": string
+    },
     "deadlineSuggested": string,
     "estimatedBudget": number
   }
 }
 `;
 
-  const userContent = `Client: ${clientName || 'Valued Client'}\nRequest: "${prompt}"${conversationContext}`;
+  let userContent = `Client: ${clientName || 'Valued Client'}\nRequest: "${prompt}"${conversationContext}`;
+  if (previousPlan) {
+    userContent += `\n\n[Previous Plan]:\nTitle: "${previousPlan.title || ''}"\nType: "${previousPlan.type || ''}" | Quantity: ${previousPlan.quantity || 1}\nDeliverables: ${(previousPlan.deliverablesList || []).map(d => d.name).join(', ')}`;
+  }
+  if (refinement) {
+    userContent += `\n\n[Client Requested Plan Changes / Adjustments]:\n"${refinement}"\n\nPlease update and regenerate the complete plan, deliverables, specifications, and rate card cost estimation incorporating these specific changes.`;
+  }
 
   const candidateModels = [
     process.env.GEMINI_MODEL,
@@ -129,6 +179,66 @@ You MUST respond strictly with valid JSON conforming to the following structure:
 
   try {
     const parsed = JSON.parse(rawText);
+
+    // ── Post-process and ensure rate card consistency ──
+    if (parsed && parsed.isComplete && parsed.plan) {
+      const plan = parsed.plan;
+      const type = plan.type || 'Video';
+      const qty = Math.max(1, Number(plan.quantity) || (Array.isArray(plan.deliverablesList) ? plan.deliverablesList.length : 1));
+      const hasSubtitles = Boolean(plan.specifications?.subtitles);
+
+      // Validate or construct robust costEstimation
+      if (!plan.costEstimation || !Array.isArray(plan.costEstimation.breakdown) || plan.costEstimation.breakdown.length === 0) {
+        const unitRate = RATE_CARD.getRateForType(type);
+        const itemTotal = unitRate * qty;
+
+        plan.costEstimation = {
+          currency: 'INR',
+          currencySymbol: '₹',
+          breakdown: [
+            {
+              item: `${qty}x ${type}`,
+              type: type,
+              quantity: qty,
+              unitRate: unitRate,
+              total: itemTotal,
+              notes: hasSubtitles ? 'Includes free dynamic subtitles & sound mix' : 'Full cut & pacing',
+            }
+          ],
+          subtitlesIncludedFree: hasSubtitles,
+          rushFee: 0,
+          totalEstimatedCost: itemTotal,
+          pricingExplanation: `Estimated at ₹${unitRate.toLocaleString('en-IN')} per ${type} based on GT Edits standard rate card. Dynamic subtitles are included at no extra cost.`,
+        };
+      } else {
+        // Enforce that subtitles never add extra cost even if AI tried to
+        plan.costEstimation.subtitlesIncludedFree = hasSubtitles;
+        
+        // Recalculate breakdown totals to ensure zero math errors
+        let sum = 0;
+        plan.costEstimation.breakdown = plan.costEstimation.breakdown.map((b) => {
+          const uRate = Number(b.unitRate) || RATE_CARD.getRateForType(b.type || type);
+          const q = Number(b.quantity) || 1;
+          const tot = uRate * q;
+          sum += tot;
+          return {
+            ...b,
+            unitRate: uRate,
+            quantity: q,
+            total: tot,
+          };
+        });
+
+        const rush = Number(plan.costEstimation.rushFee) || 0;
+        plan.costEstimation.totalEstimatedCost = sum + rush;
+        if (!plan.costEstimation.currencySymbol) plan.costEstimation.currencySymbol = '₹';
+        if (!plan.costEstimation.currency) plan.costEstimation.currency = 'INR';
+      }
+
+      // Sync plan estimatedBudget with costEstimation
+      plan.estimatedBudget = plan.costEstimation.totalEstimatedCost;
+    }
+
     return parsed;
   } catch (parseErr) {
     console.error('Failed to parse Gemini JSON output:', rawText);

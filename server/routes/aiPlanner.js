@@ -5,7 +5,7 @@ const { analyzeAndPlanWorkRequest } = require('../services/geminiPlanner');
 // ── POST /api/ai-planner/analyze — AI analyzes brief & generates plan ──
 router.post('/analyze', async (req, res) => {
   try {
-    const { prompt, clarifications, clientName } = req.body;
+    const { prompt, clarifications, clientName, refinement, previousPlan } = req.body;
 
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
       return res.status(400).json({
@@ -18,6 +18,8 @@ router.post('/analyze', async (req, res) => {
       prompt: prompt.trim(),
       clarifications: Array.isArray(clarifications) ? clarifications : [],
       clientName: clientName || '',
+      refinement: typeof refinement === 'string' ? refinement.trim() : '',
+      previousPlan: previousPlan && typeof previousPlan === 'object' ? previousPlan : null,
     });
 
     return res.json({

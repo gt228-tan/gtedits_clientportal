@@ -66,12 +66,12 @@ export async function deleteRequest(id) {
   return res.json();
 }
 
-/** Client: Call Gemini AI Planner endpoint to analyze brief and generate plan */
-export async function analyzeWorkPrompt({ prompt, clarifications = [], clientName = '' }) {
+/** Client: Call Gemini AI Planner endpoint to analyze brief and generate or refine plan */
+export async function analyzeWorkPrompt({ prompt, clarifications = [], clientName = '', refinement = '', previousPlan = null }) {
   const res = await fetch(`${API_BASE}/ai-planner/analyze`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ prompt, clarifications, clientName }),
+    body:    JSON.stringify({ prompt, clarifications, clientName, refinement, previousPlan }),
   });
   const data = await res.json();
   if (!res.ok || !data.success) {

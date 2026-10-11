@@ -51,6 +51,24 @@ const WorkRequestSchema = new mongoose.Schema({
     notes:            { type: String, default: '' },
   }],
 
+  // ── AI Cost Estimation (Based on GT Edits Rate Card) ────────
+  costEstimation: {
+    currency:              { type: String, default: 'INR' },
+    currencySymbol:        { type: String, default: '₹' },
+    totalEstimatedCost:    { type: Number, default: 0 },
+    subtitlesIncludedFree: { type: Boolean, default: true },
+    rushFee:               { type: Number, default: 0 },
+    pricingExplanation:    { type: String, default: '' },
+    breakdown: [{
+      item:      { type: String },
+      type:      { type: String },
+      quantity:  { type: Number, default: 1 },
+      unitRate:  { type: Number, default: 0 },
+      total:     { type: Number, default: 0 },
+      notes:     { type: String, default: '' },
+    }],
+  },
+
   // ── Admin-side fields ────────────────────────────────────────
   status: {
     type: String,
