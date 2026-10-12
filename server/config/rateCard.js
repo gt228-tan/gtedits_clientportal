@@ -16,6 +16,8 @@ const RATE_CARD = {
     'Shorts': 800,
     'Instagram Reel': 800,
 
+
+
     // Gaming content
     'Gaming Highlights': 1500,
     'Gaming Montage': 1500,

@@ -7,6 +7,7 @@ const workRequests  = require('./routes/workRequests');
 const projects      = require('./routes/projects');
 const deliverables  = require('./routes/deliverables');
 const aiPlanner     = require('./routes/aiPlanner');
+const driveRoutes   = require('./routes/drive');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -34,6 +35,7 @@ app.use(async (_req, _res, next) => {
 app.use('/api/work-requests', workRequests);
 app.use('/api/projects',      projects);      // /api/projects/...
 app.use('/api/ai-planner',    aiPlanner);     // /api/ai-planner/analyze
+app.use('/api/drive',         driveRoutes);   // /api/drive/create-client-folder, /api/drive/status
 app.use('/api',               deliverables);  // /api/deliverables/..., /api/projects/:id/deliverables/...
 
 // ── Health check ─────────────────────────────────────────────

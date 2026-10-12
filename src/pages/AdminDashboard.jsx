@@ -44,6 +44,7 @@ export default function AdminDashboard() {
   const [newName, setNewName] = useState('');
   const [newNotificationEmail, setNewNotificationEmail] = useState('');
   const [addBusy, setAddBusy] = useState(false);
+  const [syncDriveBusy, setSyncDriveBusy] = useState(false);
   const [sendingReminderId, setSendingReminderId] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');  // 'dashboard' | 'requests' | 'projects'
 
@@ -154,7 +155,34 @@ export default function AdminDashboard() {
         }).catch(() => { });
       }
 
-      showToast('🎉 Client added!');
+      // Auto-create dedicated Google Drive folder for the new client
+      try {
+        const driveRes = await fetch(`${API_BASE}/drive/create-client-folder`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientId: newRef.key,
+            clientName: name,
+            clientEmail: notifEmail
+          })
+        }).then(r => r.json()).catch(() => null);
+
+        if (driveRes?.success && driveRes.folderUrl) {
+          await update(ref(db, `clients/${newRef.key}`), {
+            driveFolderId: driveRes.folderId,
+            driveFolderUrl: driveRes.folderUrl
+          });
+          showToast('🎉 Client added & Google Drive folder created!');
+        } else if (driveRes && driveRes.configured === false) {
+          showToast('🎉 Client added! (Configure Google Drive in server/.env for auto-folders)', 'info');
+        } else {
+          showToast('🎉 Client added!');
+        }
+      } catch (driveErr) {
+        console.warn('Google Drive auto-creation warning:', driveErr);
+        showToast('🎉 Client added!');
+      }
+
       setCredTarget({ name, email, password });
       setNewName('');
       setNewNotificationEmail('');
@@ -167,6 +195,87 @@ export default function AdminDashboard() {
       }
     } finally {
       setAddBusy(false);
+    }
+  };
+
+  const handleCreateDriveFolder = async (clientId, clientName, clientEmail) => {
+    try {
+      showToast(`⏳ Creating Google Drive folder for ${clientName}...`, 'info');
+      const res = await fetch(`${API_BASE}/drive/create-client-folder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, clientName, clientEmail: clientEmail || '' })
+      });
+      const data = await res.json();
+      if (data.success && data.folderUrl) {
+        await update(ref(db, `clients/${clientId}`), {
+          driveFolderId: data.folderId,
+          driveFolderUrl: data.folderUrl
+        });
+        showToast(`🎉 Google Drive folder created and linked for ${clientName}!`);
+      } else {
+        showToast(`⚠️ ${data.message || data.error || 'Could not create Drive folder'}`, 'warn');
+      }
+    } catch (err) {
+      showToast(`❌ Drive creation error: ${err.message}`, 'error');
+    }
+  };
+
+  const handleSyncAllDriveFolders = async () => {
+    const missing = Object.entries(clients).filter(([_, c]) => !c.driveFolderUrl);
+    if (missing.length === 0) {
+      showToast('✅ All clients already have Google Drive folders linked!', 'info');
+      return;
+    }
+
+    const confirmSync = window.confirm(
+      `Create and link Google Drive folders for ${missing.length} existing client${missing.length > 1 ? 's' : ''}?`
+    );
+    if (!confirmSync) return;
+
+    setSyncDriveBusy(true);
+    showToast(`⏳ Creating Drive folders for ${missing.length} existing client${missing.length > 1 ? 's' : ''}...`, 'info');
+
+    try {
+      const payload = missing.map(([id, c]) => ({
+        clientId: id,
+        clientName: c.name || 'Client',
+        clientEmail: c.notificationEmail || c.contactEmail || ''
+      }));
+
+      const res = await fetch(`${API_BASE}/drive/batch-create-client-folders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clients: payload })
+      });
+      const data = await res.json();
+
+      if (data.success && Array.isArray(data.created)) {
+        let updatedCount = 0;
+        for (const item of data.created) {
+          if (item.clientId && item.folderUrl) {
+            await update(ref(db, `clients/${item.clientId}`), {
+              driveFolderId: item.folderId,
+              driveFolderUrl: item.folderUrl
+            });
+            updatedCount++;
+          }
+        }
+
+        if (updatedCount > 0) {
+          showToast(`🎉 Successfully created Google Drive folders for ${updatedCount} client${updatedCount > 1 ? 's' : ''}!`);
+        }
+        if (data.failedCount > 0) {
+          showToast(`⚠️ ${data.failedCount} folder(s) could not be created. Check server logs.`, 'warn');
+        }
+      } else {
+        showToast(`❌ Batch sync error: ${data.error || data.message || 'Failed to create folders'}`, 'warn');
+      }
+    } catch (err) {
+      console.error('Batch drive sync error:', err);
+      showToast(`❌ Drive sync error: ${err.message}`, 'error');
+    } finally {
+      setSyncDriveBusy(false);
     }
   };
 
@@ -196,33 +305,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleUpdateCalendlyUrl = async (id, currentUrl) => {
-    const input = prompt('Enter Calendly Meeting Link for client (or leave blank to use default):', currentUrl || '');
-    if (input === null) return;
-    try {
-      await update(ref(db, `clients/${id}`), {
-        calendlyUrl: input.trim()
-      });
-      showToast('📅 Client meeting link updated!');
-    } catch (err) {
-      console.error(err);
-      showToast('❌ Update failed', 'warn');
-    }
-  };
-
-  const handleSetGlobalCalendly = async () => {
-    try {
-      const snap = await get(ref(db, 'settings/calendlyUrl'));
-      const current = snap.exists() ? snap.val() : (import.meta.env.VITE_CALENDLY_URL || 'https://calendly.com');
-      const input = prompt('Enter default Calendly Meeting Link for all clients:', current);
-      if (input === null) return;
-      await set(ref(db, 'settings/calendlyUrl'), input.trim());
-      showToast('📅 Default Calendly link saved!');
-    } catch (err) {
-      console.error(err);
-      showToast('❌ Failed to update default meeting link', 'warn');
-    }
-  };
 
   const handleSetupAuth = async (id, name) => {
     const email = clientEmail(name);
@@ -424,6 +506,7 @@ export default function AdminDashboard() {
 
   const clientEntries = Object.entries(clients);
   const dueClientsCount = clientEntries.filter(([_, c]) => getClientDueAmount(c) > 0).length;
+  const missingDriveClientsCount = clientEntries.filter(([_, c]) => !c.driveFolderUrl).length;
 
   const filteredClientEntries = clientEntries.filter(([_, c]) => {
     if (clientFilter === 'due' && getClientDueAmount(c) <= 0) {
@@ -542,9 +625,6 @@ export default function AdminDashboard() {
                   ← All Projects
                 </button>
               )}
-              {/* <button className="btn-secondary" onClick={handleSetGlobalCalendly} title="Configure default Calendly meeting URL">
-                📅 Calendly Link
-              </button> */}
               <button className="btn-logout-topbar" onClick={logout}>
                 🔒 Sign Out
               </button>
@@ -612,6 +692,21 @@ export default function AdminDashboard() {
                   <span className={`client-count-pill ${clientFilter === 'due' ? 'pill-due' : ''}`}>
                     {filteredClientEntries.length} {filteredClientEntries.length === 1 ? 'client' : 'clients'}
                   </span>
+                  {missingDriveClientsCount > 0 && (
+                    <button
+                      type="button"
+                      className="btn-drive-sync"
+                      onClick={handleSyncAllDriveFolders}
+                      disabled={syncDriveBusy}
+                      title={`Create Google Drive folders for ${missingDriveClientsCount} existing client${missingDriveClientsCount > 1 ? 's' : ''}`}
+                    >
+                      {syncDriveBusy ? (
+                        <>⏳ Syncing Drive Folders…</>
+                      ) : (
+                        <>📂 Sync Drive for Existing Clients ({missingDriveClientsCount})</>
+                      )}
+                    </button>
+                  )}
                 </div>
 
                 <div className="admin-clients-filters">
@@ -713,7 +808,7 @@ export default function AdminDashboard() {
                       onSetupAuth={() => handleSetupAuth(id, c.name)}
                       onReset={() => handleResetPassword(id, c.name)}
                       onUpdateEmail={() => handleUpdateNotificationEmail(id, c.notificationEmail || c.contactEmail)}
-                      onUpdateCalendly={() => handleUpdateCalendlyUrl(id, c.calendlyUrl)}
+                      onCreateDriveFolder={handleCreateDriveFolder}
                       onDelete={() => handleDeleteClient(id)}
                       onSendReminder={() => handleSendPaymentReminder(id, c.name, c)}
                       isSendingReminder={sendingReminderId === id}
@@ -867,7 +962,7 @@ export default function AdminDashboard() {
         <ClientPreviewModal
           clientName={previewTarget.clientName}
           work={clients[previewTarget.clientId]?.work || {}}
-          calendlyUrl={clients[previewTarget.clientId]?.calendlyUrl}
+          driveFolderUrl={clients[previewTarget.clientId]?.driveFolderUrl}
           onClose={() => setPreviewTarget(null)}
         />
       )}
@@ -1106,7 +1201,7 @@ function ProjectDetailView({ project, getToken, onDelete, onStatusChange, status
 }
 
 // ── Client Card ────────────────────────────────────────────
-function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, onUpdateEmail, onUpdateCalendly, onPreview, onDelete, onCreateProject, onSendReminder, isSendingReminder }) {
+function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, onUpdateEmail, onCreateDriveFolder, onPreview, onDelete, onCreateProject, onSendReminder, isSendingReminder }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const menuRef = useRef(null);
@@ -1183,13 +1278,28 @@ function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, 
               >
                 ✉️ Email: <span style={{ color: notifEmail ? '#0f172a' : '#ea580c', fontWeight: 600 }}>{notifEmail || 'Set Notification'}</span>
               </span>
-              <span
-                className="clean-meta-item"
-                onClick={onUpdateCalendly}
-                title="Click to edit Calendly meeting link"
-              >
-                📅 Meet: <span>{client.calendlyUrl ? 'Custom Link' : 'Default Calendly'}</span> ✏️
-              </span>
+
+              {client.driveFolderUrl ? (
+                <a
+                  href={client.driveFolderUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="clean-meta-item"
+                  title="Open Google Drive folder for this client"
+                  style={{ color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}
+                >
+                  📂 Drive Folder ↗
+                </a>
+              ) : (
+                <span
+                  className="clean-meta-item"
+                  onClick={() => onCreateDriveFolder(id, client.name, client.notificationEmail)}
+                  title="Create Google Drive folder for this client"
+                  style={{ cursor: 'pointer' }}
+                >
+                  📂 <span style={{ color: '#ea580c', fontWeight: 600 }}>+ Create Drive</span>
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -1402,22 +1512,37 @@ function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, 
               Notifications
             </button>
 
-            <button
-              type="button"
-              className="clean-dropdown-item"
-              onClick={() => {
-                setMenuOpen(false);
-                onUpdateCalendly();
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
-                <line x1="16" x2="16" y1="2" y2="6" />
-                <line x1="8" x2="8" y1="2" y2="6" />
-                <line x1="3" x2="21" y1="10" y2="10" />
-              </svg>
-              Calendly
-            </button>
+            {client.driveFolderUrl ? (
+              <a
+                href={client.driveFolderUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="clean-dropdown-item"
+                onClick={() => setMenuOpen(false)}
+                style={{ textDecoration: 'none' }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+                Open Drive Folder
+              </a>
+            ) : (
+              <button
+                type="button"
+                className="clean-dropdown-item"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onCreateDriveFolder(id, client.name, client.notificationEmail);
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  <line x1="12" y1="11" x2="12" y2="17" />
+                  <line x1="9" y1="14" x2="15" y2="14" />
+                </svg>
+                Create Drive Folder
+              </button>
+            )}
 
             <div className="clean-dropdown-divider" />
 

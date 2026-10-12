@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { submitWorkRequest, analyzeWorkPrompt } from '../api/workRequests';
 import { showToast } from './Toast';
 
@@ -16,8 +16,102 @@ const EMPTY = {
   remarks:  '',
 };
 
-export default function WorkRequestForm({ clientId, clientFirebaseUid, clientName, onClose, onSubmitted }) {
+export default function WorkRequestForm({ clientId, clientFirebaseUid, clientName, driveFolderUrl, onClose, onSubmitted }) {
   const [tab, setTab] = useState('ai'); // 'ai' | 'manual'
+
+  // ── Speech / Voice Recognition State ─────────────────────────────
+  const recognitionRef = useRef(null);
+  const [listeningTarget, setListeningTarget] = useState(null); // 'prompt' | 'refine' | 'edit_brief' | `clarify_${idx}`
+
+  const isSpeechRecognitionSupported = typeof window !== 'undefined' &&
+    Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onend = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.abort();
+      } catch (e) {
+        // ignore
+      }
+      recognitionRef.current = null;
+    }
+    setListeningTarget(null);
+  };
+
+  useEffect(() => {
+    return () => {
+      stopListening();
+    };
+  }, []);
+
+  const handleToggleListening = (target, getCurrentText, onUpdate) => {
+    if (listeningTarget === target) {
+      stopListening();
+      return;
+    }
+
+    if (!isSpeechRecognitionSupported) {
+      showToast('⚠️ Voice recognition is not supported in this browser. Please use Chrome, Edge, or Safari.', 'warn');
+      return;
+    }
+
+    stopListening();
+
+    try {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = navigator.language || 'en-US';
+
+      const initialText = (typeof getCurrentText === 'function' ? getCurrentText() : getCurrentText) || '';
+      const basePrefix = initialText.trim() ? (initialText.trim() + ' ') : '';
+
+      recognition.onstart = () => {
+        setListeningTarget(target);
+        showToast('🎙️ Microphone active. Speak out your requirements now...', 'info');
+      };
+
+      recognition.onresult = (event) => {
+        let spokenTranscript = '';
+        for (let i = 0; i < event.results.length; i++) {
+          spokenTranscript += event.results[i][0].transcript;
+        }
+        const trimmedSpoken = spokenTranscript.trimStart();
+        onUpdate(basePrefix + trimmedSpoken);
+      };
+
+      recognition.onerror = (event) => {
+        console.warn('Speech recognition error:', event.error);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          showToast('⚠️ Microphone access denied. Please allow mic permissions in your browser.', 'error');
+        } else if (event.error === 'no-speech') {
+          // silence
+        } else if (event.error !== 'aborted') {
+          showToast(`⚠️ Microphone notice: ${event.error}`, 'warn');
+        }
+        setListeningTarget(null);
+      };
+
+      recognition.onend = () => {
+        setListeningTarget(null);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error('Failed to start speech recognition:', err);
+      showToast('⚠️ Could not activate microphone. Please try again.', 'error');
+      setListeningTarget(null);
+    }
+  };
+
+  const handleClose = () => {
+    stopListening();
+    onClose();
+  };
 
   // ── Standard Form State ──────────────────────────────────────────
   const [form,         setForm]         = useState(EMPTY);
@@ -132,6 +226,7 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
 
   // ── AI Planner Handlers ─────────────────────────────────────────
   const handleGenerateAiPlan = async (isFollowUp = false) => {
+    stopListening();
     if (!aiPrompt.trim()) {
       showToast('⚠️ Please describe your project requirements first', 'warn');
       return;
@@ -180,6 +275,7 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
   };
 
   const handleRefineAiPlan = async (customInstruction = '') => {
+    stopListening();
     const instruction = (customInstruction || refinePrompt).trim();
     if (!instruction) {
       showToast('⚠️ Please enter the changes or adjustments you need', 'warn');
@@ -312,7 +408,7 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
   };
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && handleClose()}>
       <div className="wr-modal">
 
         {/* Modal Header */}
@@ -322,11 +418,11 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
             <div>
               <h2 className="wr-modal-title">New Work Request</h2>
               <p className="wr-modal-sub">
-                {tab === 'ai' ? 'Tell us what you need in plain English — Gemini AI creates the plan' : 'Submit your request using the standard form'}
+                {tab === 'ai' ? 'Tell us what you need in plain English or speak with your mic — Gemini AI creates the plan' : 'Submit your request using the standard form'}
               </p>
             </div>
           </div>
-          <button className="wr-close-btn" onClick={onClose} aria-label="Close">✕</button>
+          <button className="wr-close-btn" onClick={handleClose} aria-label="Close">✕</button>
         </div>
 
         {/* Mode Selector Tabs */}
@@ -334,14 +430,14 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
           <button
             type="button"
             className={`ai-planner-tab-btn ${tab === 'ai' ? 'active' : ''}`}
-            onClick={() => setTab('ai')}
+            onClick={() => { stopListening(); setTab('ai'); }}
           >
             ✨ AI Project Planner
           </button>
           <button
             type="button"
             className={`ai-planner-tab-btn ${tab === 'manual' ? 'active' : ''}`}
-            onClick={() => setTab('manual')}
+            onClick={() => { stopListening(); setTab('manual'); }}
           >
             📝 Standard Form
           </button>
@@ -359,30 +455,87 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
                     <span>💡</span> What do you need?
                   </div>
                   <div className="ai-prompt-hero-sub">
-                    Tell us what you need in your own words. For example: <em>“I need 3 Instagram reels from our college event footage. Each should be around 30 seconds, energetic, with subtitles. We need them before October 15.”</em>
+                    Tell us what you need in your own words, or click <strong>🎙️ Speak Brief</strong> to talk directly. For example: <em>“I need 3 Instagram reels from our college event footage. Each should be around 30 seconds, energetic, with subtitles. We need them before October 15.”</em>
                   </div>
                 </div>
 
                 <div className="wr-field">
-                  <label className="wr-label" htmlFor="ai-prompt-input">
-                    Project Description / Brief <span className="wr-required">*</span>
-                  </label>
+                  <div className="ai-field-header-row">
+                    <label className="wr-label" htmlFor="ai-prompt-input" style={{ marginBottom: 0 }}>
+                      Project Description / Brief <span className="wr-required">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      className={`ai-mic-btn ${listeningTarget === 'prompt' ? 'listening' : ''}`}
+                      onClick={() => handleToggleListening('prompt', () => aiPrompt, setAiPrompt)}
+                      disabled={aiLoading}
+                      title={listeningTarget === 'prompt' ? 'Stop listening' : 'Click to speak out your project brief'}
+                    >
+                      {listeningTarget === 'prompt' ? (
+                        <>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="6" y="6" width="12" height="12" rx="2" />
+                          </svg>
+                          <span>Listening... (Click to stop)</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" y1="19" x2="12" y2="23"/>
+                            <line x1="8" y1="23" x2="16" y2="23"/>
+                          </svg>
+                          <span>🎙️ Speak Brief</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <textarea
                     id="ai-prompt-input"
                     className="wr-textarea"
                     rows={4}
-                    placeholder="Describe what you want us to create or edit..."
+                    placeholder="Describe what you want us to create or edit... (or click 'Speak Brief' to talk)"
                     value={aiPrompt}
                     onChange={e => setAiPrompt(e.target.value)}
                     disabled={aiLoading}
                   />
+                  {listeningTarget === 'prompt' && (
+                    <div className="ai-listening-indicator">
+                      <div className="ai-listening-info">
+                        <span className="ai-voice-pulse-dot"></span>
+                        <span>Listening to your voice... Speak your project requirements now</span>
+                        <div className="ai-sound-waves">
+                          <span></span><span></span><span></span><span></span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="ai-listening-stop-btn"
+                        onClick={stopListening}
+                      >
+                        Done Speaking ✕
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Optional Materials / Drive Link */}
                 <div className="wr-field">
-                  <label className="wr-label" htmlFor="ai-materials-input">
-                    Raw Footage / Drive Link <span className="wr-hint">(Optional, can be added later)</span>
-                  </label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label className="wr-label" htmlFor="ai-materials-input" style={{ marginBottom: 0 }}>
+                      Raw Footage / Drive Link <span className="wr-hint">(Optional)</span>
+                    </label>
+                    {driveFolderUrl && (
+                      <button
+                        type="button"
+                        style={{ background: 'none', border: 'none', color: '#16a34a', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                        onClick={() => setAiMaterials(driveFolderUrl)}
+                      >
+                        📂 Use My Drive Folder
+                      </button>
+                    )}
+                  </div>
                   <div className="wr-input-wrapper">
                     <span className="wr-input-icon">🔗</span>
                     <input
@@ -403,19 +556,55 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
                     <strong style={{ display: 'block', marginBottom: '8px', color: '#92400e' }}>
                       🤔 I understand your request, but I need {aiMissingQuestions.length} detail{aiMissingQuestions.length > 1 ? 's' : ''} to finalize your plan:
                     </strong>
-                    {aiMissingQuestions.map((q, idx) => (
-                      <div key={idx} className="ai-clarify-q-card">
-                        <label className="ai-clarify-q-label">{idx + 1}. {q}</label>
-                        <input
-                          type="text"
-                          className="wr-input"
-                          placeholder="Your answer..."
-                          value={clarificationAnswers[q] || ''}
-                          onChange={e => setClarificationAnswers(prev => ({ ...prev, [q]: e.target.value }))}
-                          disabled={aiLoading}
-                        />
-                      </div>
-                    ))}
+                    {aiMissingQuestions.map((q, idx) => {
+                      const isThisListening = listeningTarget === `clarify_${idx}`;
+                      return (
+                        <div key={idx} className="ai-clarify-q-card">
+                          <div className="ai-field-header-row" style={{ marginBottom: '4px' }}>
+                            <label className="ai-clarify-q-label" style={{ marginBottom: 0 }}>{idx + 1}. {q}</label>
+                            <button
+                              type="button"
+                              className={`ai-mic-btn-sm ${isThisListening ? 'listening' : ''}`}
+                              onClick={() => handleToggleListening(
+                                `clarify_${idx}`,
+                                () => clarificationAnswers[q] || '',
+                                (val) => setClarificationAnswers(prev => ({ ...prev, [q]: val }))
+                              )}
+                              disabled={aiLoading}
+                              title={isThisListening ? 'Stop listening' : 'Speak answer'}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                <line x1="12" y1="19" x2="12" y2="23"/>
+                                <line x1="8" y1="23" x2="16" y2="23"/>
+                              </svg>
+                              {isThisListening ? 'Listening...' : '🎙️ Speak'}
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            className="wr-input"
+                            placeholder="Your answer..."
+                            value={clarificationAnswers[q] || ''}
+                            onChange={e => setClarificationAnswers(prev => ({ ...prev, [q]: e.target.value }))}
+                            disabled={aiLoading}
+                          />
+                          {isThisListening && (
+                            <div className="ai-listening-indicator" style={{ marginTop: '4px', padding: '6px 12px' }}>
+                              <div className="ai-listening-info">
+                                <span className="ai-voice-pulse-dot"></span>
+                                <span>Listening to your answer... Speak now</span>
+                                <div className="ai-sound-waves">
+                                  <span></span><span></span><span></span><span></span>
+                                </div>
+                              </div>
+                              <button type="button" className="ai-listening-stop-btn" onClick={stopListening}>Done ✕</button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -473,14 +662,14 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
                             Need changes to this plan?
                           </strong>
                           <span className="ai-refine-sub">
-                            Type adjustments below (e.g. change quantity, style, or add items) — AI updates everything
+                            Type adjustments below or speak with your mic (e.g. change quantity, style, or add items) — AI updates everything
                           </span>
                         </div>
                       </div>
                       <button
                         type="button"
                         className="ai-refine-toggle-btn"
-                        onClick={() => setShowEditBrief(prev => !prev)}
+                        onClick={() => { stopListening(); setShowEditBrief(prev => !prev); }}
                         disabled={aiLoading}
                       >
                         {showEditBrief ? '✕ Close Full Brief' : '📝 Edit Full Brief'}
@@ -489,9 +678,26 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
 
                     {showEditBrief ? (
                       <div className="ai-refine-full-edit">
-                        <label className="wr-label" style={{ fontSize: '0.78rem', marginBottom: '4px' }}>
-                          Edit Original Prompt / Full Brief:
-                        </label>
+                        <div className="ai-field-header-row" style={{ marginBottom: '4px' }}>
+                          <label className="wr-label" style={{ fontSize: '0.78rem', marginBottom: 0 }}>
+                            Edit Original Prompt / Full Brief:
+                          </label>
+                          <button
+                            type="button"
+                            className={`ai-mic-btn-sm ${listeningTarget === 'edit_brief' ? 'listening' : ''}`}
+                            onClick={() => handleToggleListening('edit_brief', () => aiPrompt, setAiPrompt)}
+                            disabled={aiLoading}
+                            title={listeningTarget === 'edit_brief' ? 'Stop listening' : 'Speak brief changes'}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                              <line x1="12" y1="19" x2="12" y2="23"/>
+                              <line x1="8" y1="23" x2="16" y2="23"/>
+                            </svg>
+                            {listeningTarget === 'edit_brief' ? 'Listening...' : '🎙️ Speak'}
+                          </button>
+                        </div>
                         <textarea
                           className="wr-textarea"
                           rows={3}
@@ -500,6 +706,18 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
                           placeholder="Edit your full project brief here..."
                           disabled={aiLoading}
                         />
+                        {listeningTarget === 'edit_brief' && (
+                          <div className="ai-listening-indicator" style={{ marginTop: '4px', padding: '6px 12px' }}>
+                            <div className="ai-listening-info">
+                              <span className="ai-voice-pulse-dot"></span>
+                              <span>Listening to your voice... Speak brief updates now</span>
+                              <div className="ai-sound-waves">
+                                <span></span><span></span><span></span><span></span>
+                              </div>
+                            </div>
+                            <button type="button" className="ai-listening-stop-btn" onClick={stopListening}>Done ✕</button>
+                          </div>
+                        )}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
                           <button
                             type="button"
@@ -516,34 +734,64 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
                         </div>
                       </div>
                     ) : (
-                      <div className="ai-refine-input-row">
-                        <input
-                          type="text"
-                          className="wr-input"
-                          placeholder="e.g. Actually make it 5 reels instead of 3, add 2 thumbnails, faster pacing…"
-                          value={refinePrompt}
-                          onChange={e => setRefinePrompt(e.target.value)}
-                          disabled={aiLoading}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' && refinePrompt.trim() && !aiLoading) {
-                              e.preventDefault();
-                              handleRefineAiPlan();
-                            }
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className="ai-btn-refine"
-                          onClick={() => handleRefineAiPlan()}
-                          disabled={aiLoading || !refinePrompt.trim()}
-                        >
-                          {aiLoading ? (
-                            <><span className="wr-spinner"></span> Updating...</>
-                          ) : (
-                            '✨ Update Plan'
-                          )}
-                        </button>
-                      </div>
+                      <>
+                        <div className="ai-refine-input-row">
+                          <div className="ai-input-with-mic">
+                            <input
+                              type="text"
+                              className="wr-input"
+                              placeholder="e.g. Actually make it 5 reels instead of 3, add 2 thumbnails, faster pacing…"
+                              value={refinePrompt}
+                              onChange={e => setRefinePrompt(e.target.value)}
+                              disabled={aiLoading}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && refinePrompt.trim() && !aiLoading) {
+                                  e.preventDefault();
+                                  handleRefineAiPlan();
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className={`ai-inner-mic-btn ${listeningTarget === 'refine' ? 'listening' : ''}`}
+                              onClick={() => handleToggleListening('refine', () => refinePrompt, setRefinePrompt)}
+                              disabled={aiLoading}
+                              title={listeningTarget === 'refine' ? 'Stop listening' : 'Click to speak adjustments'}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                <line x1="12" y1="19" x2="12" y2="23"/>
+                                <line x1="8" y1="23" x2="16" y2="23"/>
+                              </svg>
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            className="ai-btn-refine"
+                            onClick={() => handleRefineAiPlan()}
+                            disabled={aiLoading || !refinePrompt.trim()}
+                          >
+                            {aiLoading ? (
+                              <><span className="wr-spinner"></span> Updating...</>
+                            ) : (
+                              '✨ Update Plan'
+                            )}
+                          </button>
+                        </div>
+                        {listeningTarget === 'refine' && (
+                          <div className="ai-listening-indicator" style={{ marginTop: '6px' }}>
+                            <div className="ai-listening-info">
+                              <span className="ai-voice-pulse-dot"></span>
+                              <span>Listening to adjustment... Speak now</span>
+                              <div className="ai-sound-waves">
+                                <span></span><span></span><span></span><span></span>
+                              </div>
+                            </div>
+                            <button type="button" className="ai-listening-stop-btn" onClick={stopListening}>Done ✕</button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
 
@@ -742,7 +990,18 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
                     </div>
 
                     <div className="wr-field">
-                      <label className="wr-label">Raw Footage / Assets Link</label>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <label className="wr-label" style={{ marginBottom: 0 }}>Raw Footage / Assets Link</label>
+                        {driveFolderUrl && (
+                          <button
+                            type="button"
+                            style={{ background: 'none', border: 'none', color: '#16a34a', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                            onClick={() => setPlanForm(prev => ({ ...prev, materials: driveFolderUrl }))}
+                          >
+                            📂 Use My Drive Folder
+                          </button>
+                        )}
+                      </div>
                       <input
                         type="url"
                         className="wr-input"
@@ -923,9 +1182,20 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
 
             {/* Materials Link */}
             <div className="wr-field">
-              <label className="wr-label" htmlFor="wr-materials">
-                Materials / Raw Clips <span className="wr-hint">(YT / Google Drive / Dropbox link)</span>
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label className="wr-label" htmlFor="wr-materials" style={{ marginBottom: 0 }}>
+                  Materials / Raw Clips <span className="wr-hint">(Drive link)</span>
+                </label>
+                {driveFolderUrl && (
+                  <button
+                    type="button"
+                    style={{ background: 'none', border: 'none', color: '#16a34a', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                    onClick={() => set('materials', driveFolderUrl)}
+                  >
+                    📂 Use My Drive Folder
+                  </button>
+                )}
+              </div>
               <div className="wr-input-wrapper">
                 <span className="wr-input-icon">🔗</span>
                 <input
@@ -1045,7 +1315,7 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
 
             {/* Footer Actions */}
             <div className="wr-actions">
-              <button type="button" className="wr-btn-cancel" onClick={onClose} disabled={busy}>
+              <button type="button" className="wr-btn-cancel" onClick={handleClose} disabled={busy}>
                 Cancel
               </button>
               <button type="submit" className="wr-btn-submit" disabled={busy}>

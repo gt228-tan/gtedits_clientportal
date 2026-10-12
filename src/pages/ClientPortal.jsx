@@ -62,20 +62,6 @@ export default function ClientPortal() {
   const [actionBusy, setActionBusy] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  // ── Calendly meeting link ──────────────────────────────────
-  const [globalCalendlyUrl, setGlobalCalendlyUrl] = useState(import.meta.env.VITE_CALENDLY_URL || 'https://calendly.com');
-
-  useEffect(() => {
-    const unsub = onValue(ref(db, 'settings/calendlyUrl'), (snap) => {
-      if (snap.exists() && snap.val()) {
-        setGlobalCalendlyUrl(snap.val());
-      }
-    });
-    return () => unsub();
-  }, []);
-
-  const meetingUrl = client?.calendlyUrl || globalCalendlyUrl;
-
   // ── Real-time client data ──────────────────────────────────
   useEffect(() => {
     if (!clientId) return;
@@ -228,7 +214,7 @@ export default function ClientPortal() {
       {/* ── Sidebar ── */}
       <aside className="admin-sidebar">
         <div className="sidebar-logo">
-          <span>⚡</span> GT Portal
+          <span>⚡</span> EditDesk
         </div>
         <nav className="sidebar-nav">
           <div className="sidebar-section-label">NAVIGATION</div>
@@ -269,15 +255,17 @@ export default function ClientPortal() {
           >
             <span>📱</span> QR Pay
           </button>
-          <a
-            href={meetingUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="sidebar-item"
-            style={{ textDecoration: 'none' }}
-          >
-            <span>📅</span> Book Meeting
-          </a>
+          {client?.driveFolderUrl && (
+            <a
+              href={client.driveFolderUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="sidebar-item"
+              style={{ textDecoration: 'none' }}
+            >
+              <span>📂</span> Google Drive
+            </a>
+          )}
         </nav>
 
         <div className="sidebar-footer">
@@ -315,15 +303,17 @@ export default function ClientPortal() {
                   <button className="btn-invoice" onClick={handleDownloadInvoice} disabled={pdfBusy}>
                     {pdfBusy ? '⏳ Generating…' : '⬇ Invoice'}
                   </button>
-                  <a
-                    href={meetingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-invoice"
-                    title="Book a meeting on Calendly"
-                  >
-                    📅 Book Meeting
-                  </a>
+                  {client?.driveFolderUrl && (
+                    <a
+                      href={client.driveFolderUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-invoice"
+                      title="Open your Google Drive assets folder"
+                    >
+                      📂 Drive Folder
+                    </a>
+                  )}
                   <button className="btn-new-request" onClick={() => setShowRequestForm(true)}>
                     ✏️ New Request
                   </button>
@@ -729,6 +719,7 @@ export default function ClientPortal() {
           clientId={clientId}
           clientFirebaseUid={currentUser?.uid}
           clientName={name}
+          driveFolderUrl={client?.driveFolderUrl}
           onClose={() => setShowRequestForm(false)}
           onSubmitted={loadRequests}
         />

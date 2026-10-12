@@ -2,8 +2,7 @@
 node_modules
 server/node_modules
 _backup
-
-
+server/service-account.json
 
 .env
 .env.*

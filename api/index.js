@@ -10,7 +10,7 @@ try {
   const dotenv = require('dotenv');
   dotenv.config({ path: path.join(__dirname, '../server/.env') });
 } catch {
-  // In production Vercel, process.env is injected by Vercel project environment variables
+
 }
 
 const app = require('../server/index.js');
