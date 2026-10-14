@@ -28,13 +28,25 @@ router.post('/', requireAuth('admin'), async (req, res) => {
       return res.status(400).json({ error: 'clientFirebaseUid is required — ensure the client has completed Firebase Auth setup.' });
     }
 
+    let finalDriveFolderUrl = (driveFolderUrl || '').trim();
+    if (!finalDriveFolderUrl && firebaseClientId) {
+      try {
+        const clientData = await readClientFromRTDB(firebaseClientId);
+        if (clientData && clientData.driveFolderUrl) {
+          finalDriveFolderUrl = clientData.driveFolderUrl.trim();
+        }
+      } catch (e) {
+        console.warn('Failed to read client driveFolderUrl:', e.message);
+      }
+    }
+
     const project = await Project.create({
       firebaseClientId,
       clientFirebaseUid,
       clientName,
       title,
       description: description || '',
-      driveFolderUrl: driveFolderUrl || '',
+      driveFolderUrl: finalDriveFolderUrl || '',
       status: 'project_created',
     });
 

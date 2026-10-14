@@ -15,3 +15,6 @@ dist
 *.local
 firebase.js
 
+start-dev.bat
+stop-dev.bat
+create-desktop-shortcut.bat

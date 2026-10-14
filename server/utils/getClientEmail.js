@@ -7,8 +7,8 @@ function getAdminDb() {
   if (adminDb) return adminDb;
   try {
     const admin = require('firebase-admin');
-    
-    if (!admin.apps.length) {
+    const apps = admin.apps || (typeof admin.getApps === 'function' ? admin.getApps() : []);
+    if (!apps || apps.length === 0) {
       admin.initializeApp({
         credential: admin.credential.applicationDefault(),
         databaseURL: DATABASE_URL.replace(/\/+$/, ''),
@@ -33,6 +33,14 @@ function isRealEmail(email) {
 
 
 async function readClientFromRTDB(clientId, authToken = null) {
+  if (typeof clientId === 'object' && clientId !== null) {
+    if (clientId.authToken) authToken = clientId.authToken;
+    clientId = clientId.clientId || clientId.id || clientId.firebaseClientId || '';
+  }
+  if (!clientId || typeof clientId !== 'string' || clientId === '[object Object]') {
+    return null;
+  }
+
   const db = getAdminDb();
   if (db) {
     try {
@@ -94,6 +102,16 @@ async function readAllClientsFromRTDB(authToken = null) {
 }
 
 async function getClientContactEmail(clientId, clientFirebaseUid, clientName = '', authToken = null, directEmail = null) {
+  if (typeof clientId === 'object' && clientId !== null) {
+    const opts = clientId;
+    clientId = opts.clientId || opts.id || opts.firebaseClientId || null;
+    clientFirebaseUid = opts.clientFirebaseUid || clientFirebaseUid;
+    clientName = opts.clientName || clientName || '';
+    authToken = opts.authToken || authToken || null;
+    directEmail = opts.directEmail || directEmail || null;
+  }
+  if (clientId === '[object Object]') clientId = null;
+  if (clientName === '[object Object]') clientName = '';
   console.log(`[EmailLookup] Starting lookup for clientId="${clientId}", uid="${clientFirebaseUid}", name="${clientName}", directEmail="${directEmail || ''}"`);
 
   // 0. Direct email passed from payload/request

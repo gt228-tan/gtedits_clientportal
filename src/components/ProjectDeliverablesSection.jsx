@@ -5,7 +5,7 @@ import DeliverableUploadModal  from './DeliverableUploadModal';
 import DeliverablePreviewModal from './DeliverablePreviewModal';
 import { fetchProjectDeliverables, downloadDeliverable } from '../api/deliverables';
 
-export default function ProjectDeliverablesSection({ project, token, isAdmin = false }) {
+export default function ProjectDeliverablesSection({ project, token, isAdmin = false, client }) {
   const [deliverables,  setDeliverables]  = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [showUpload,    setShowUpload]    = useState(false);
@@ -48,9 +48,9 @@ export default function ProjectDeliverablesSection({ project, token, isAdmin = f
       <div className="dlv-section-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <h3 className="dlv-section-title">📦 Deliverables</h3>
-          {project.driveFolderUrl && (
+          {(project.driveFolderUrl || client?.driveFolderUrl) && (
             <a
-              href={project.driveFolderUrl}
+              href={project.driveFolderUrl || client?.driveFolderUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="btn-secondary"
@@ -133,6 +133,7 @@ export default function ProjectDeliverablesSection({ project, token, isAdmin = f
           projectId={project._id}
           project={project}
           token={token}
+          client={client}
           onClose={() => setShowUpload(false)}
           onUploaded={loadDeliverables}
         />

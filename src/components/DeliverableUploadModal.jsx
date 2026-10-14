@@ -3,6 +3,7 @@ import { showToast } from './Toast';
 import { uploadFileDeliverable, uploadLinkDeliverable } from '../api/deliverables';
 import { updateProject } from '../api/projects';
 import { API_BASE } from '../api/config';
+import { db, ref, get, update } from '../firebase';
 
 const MAX_SIZE = 5 * 1024 * 1024 * 1024; // 5 GB limit
 
@@ -13,35 +14,85 @@ function formatBytes(b) {
   return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
-export default function DeliverableUploadModal({ projectId, project, token, onClose, onUploaded }) {
-  const hasDrive = !!(project?.driveFolderUrl && project.driveFolderUrl.trim());
+export default function DeliverableUploadModal({ projectId, project, token, client, onClose, onUploaded }) {
+  const initialDriveFolder = project?.driveFolderUrl || client?.driveFolderUrl || '';
+  const rawEmail = client?.notificationEmail || client?.contactEmail || project?.clientEmail || project?.contactEmail || '';
+  const initialClientEmail = (rawEmail && !rawEmail.includes('gtportal.com')) ? rawEmail : '';
+
+  const hasDrive = !!(initialDriveFolder && initialDriveFolder.trim());
   const [step,           setStep]           = useState(hasDrive ? 'quick' : 'choose'); // 'quick' | 'choose' | 'file' | 'link'
   const [name,           setName]           = useState('');
   const [description,    setDescription]    = useState('');
-  const [url,            setUrl]            = useState(project?.driveFolderUrl || '');
+  const [url,            setUrl]            = useState(initialDriveFolder);
   const [file,           setFile]           = useState(null);
-  const [clientEmail,    setClientEmail]    = useState(project?.clientEmail || project?.contactEmail || '');
+  const [clientEmail,    setClientEmail]    = useState(initialClientEmail);
   const [allowDownload,  setAllowDownload]  = useState(true);
   const [progress,       setProgress]       = useState(0); // 0-100
   const [uploading,      setUploading]      = useState(false);
-  const [driveFolder,    setDriveFolder]    = useState(project?.driveFolderUrl || '');
+  const [driveFolder,    setDriveFolder]    = useState(initialDriveFolder);
   const [savingDriveUrl, setSavingDriveUrl] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Auto-fetch client notification email if not already present
+  // Sync if client or project props change
   useEffect(() => {
-    if (clientEmail && clientEmail.includes('@') && !clientEmail.includes('gtportal.com')) return;
-    const cid = project?.firebaseClientId;
-    if (!cid) return;
-    fetch(`${API_BASE}/work-requests/client-email?clientId=${encodeURIComponent(cid)}`)
+    const folder = project?.driveFolderUrl || client?.driveFolderUrl || '';
+    if (folder) {
+      setDriveFolder(prev => prev || folder);
+      setUrl(prev => prev || folder);
+    }
+    const email = client?.notificationEmail || client?.contactEmail || project?.clientEmail || project?.contactEmail || '';
+    if (email && email.includes('@') && !email.includes('gtportal.com')) {
+      setClientEmail(prev => prev || email);
+    }
+  }, [client, project]);
+
+  // Auto-fetch client notification email & default drive folder from RTDB & API
+  useEffect(() => {
+    let cid = project?.firebaseClientId;
+    if (typeof cid === 'object' && cid !== null) {
+      cid = cid.clientId || cid.id || cid._id || '';
+    }
+    if (!cid || cid === '[object Object]') return;
+
+    // 1. Direct Firebase RTDB lookup for fastest local fetch
+    try {
+      get(ref(db, `clients/${cid}`)).then((snap) => {
+        if (snap.exists()) {
+          const cData = snap.val() || {};
+          if (cData.driveFolderUrl) {
+            setDriveFolder(prev => prev || cData.driveFolderUrl);
+            setUrl(prev => prev || cData.driveFolderUrl);
+            if (project && !project.driveFolderUrl) {
+              project.driveFolderUrl = cData.driveFolderUrl;
+            }
+          }
+          const email = cData.notificationEmail || cData.contactEmail || cData.email;
+          if (email && email.includes('@') && !email.includes('gtportal.com')) {
+            setClientEmail(prev => prev || email);
+          }
+        }
+      }).catch(err => console.warn('RTDB client lookup in modal:', err));
+    } catch {
+      // ignore
+    }
+
+    // 2. Also query backend API
+    fetch(`${API_BASE}/work-requests/client-email?clientId=${encodeURIComponent(cid)}&clientName=${encodeURIComponent(project?.clientName || '')}`)
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
         if (d?.contactEmail && d.contactEmail.includes('@') && !d.contactEmail.includes('gtportal.com')) {
-          setClientEmail(d.contactEmail);
+          setClientEmail(prev => prev || d.contactEmail);
+        }
+        if (d?.driveFolderUrl) {
+          setDriveFolder(prev => prev || d.driveFolderUrl);
+          setUrl(prev => prev || d.driveFolderUrl);
+          if (project && !project.driveFolderUrl) {
+            project.driveFolderUrl = d.driveFolderUrl;
+          }
         }
       })
       .catch(() => {});
-  }, [project?.firebaseClientId, clientEmail]);
+  }, [project?.firebaseClientId, project?.clientName]);
 
   const handleSaveDriveFolder = async () => {
     if (!driveFolder.trim()) return;
@@ -51,7 +102,17 @@ export default function DeliverableUploadModal({ projectId, project, token, onCl
       if (project) project.driveFolderUrl = driveFolder.trim();
       setUrl(driveFolder.trim());
       setStep('quick');
-      showToast('✅ Project Google Drive Folder saved!', 'success');
+      // Also update client in RTDB if clientId is present
+      if (project?.firebaseClientId) {
+        try {
+          await update(ref(db, `clients/${project.firebaseClientId}`), {
+            driveFolderUrl: driveFolder.trim()
+          });
+        } catch (e) {
+          console.warn('Failed to update RTDB client driveFolderUrl:', e);
+        }
+      }
+      showToast('✅ Client Google Drive Folder saved!', 'success');
     } catch (err) {
       showToast(`❌ ${err.message}`, 'warn');
     } finally {
@@ -81,11 +142,18 @@ export default function DeliverableUploadModal({ projectId, project, token, onCl
   const handleQuickSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) { showToast('⚠️ Deliverable name is required', 'warn'); return; }
-    const targetUrl = url.trim() || project?.driveFolderUrl || '';
+    const targetUrl = url.trim() || driveFolder.trim() || project?.driveFolderUrl || client?.driveFolderUrl || '';
     if (!targetUrl)   { showToast('⚠️ Please enter or set a Google Drive link', 'warn'); return; }
 
     setUploading(true);
     try {
+      // If project didn't have driveFolderUrl saved, persist it
+      if (!project?.driveFolderUrl && (driveFolder.trim() || targetUrl)) {
+        const folderToPersist = driveFolder.trim() || targetUrl;
+        updateProject(projectId, { driveFolderUrl: folderToPersist }, token).catch(() => {});
+        if (project) project.driveFolderUrl = folderToPersist;
+      }
+
       const payload = {
         name: name.trim(),
         description: description.trim(),
@@ -196,7 +264,13 @@ export default function DeliverableUploadModal({ projectId, project, token, onCl
         <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
           <button
             type="button"
-            onClick={() => setStep('quick')}
+            onClick={() => {
+              setStep('quick');
+              if (!url) {
+                const folder = driveFolder || project?.driveFolderUrl || client?.driveFolderUrl || '';
+                if (folder) setUrl(folder);
+              }
+            }}
             disabled={uploading}
             style={{
               flex: 1,
@@ -257,14 +331,14 @@ export default function DeliverableUploadModal({ projectId, project, token, onCl
         </div>
 
         {/* Drive Folder banner / setter */}
-        <div style={{ background: project?.driveFolderUrl ? '#f0fdf4' : '#f8fafc', padding: '10px 14px', borderRadius: '8px', marginBottom: '14px', border: `1px solid ${project?.driveFolderUrl ? '#bbf7d0' : '#e2e8f0'}` }}>
+        <div style={{ background: (project?.driveFolderUrl || driveFolder) ? '#f0fdf4' : '#f8fafc', padding: '10px 14px', borderRadius: '8px', marginBottom: '14px', border: `1px solid ${(project?.driveFolderUrl || driveFolder) ? '#bbf7d0' : '#e2e8f0'}` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: project?.driveFolderUrl ? '#166534' : '#334155' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: (project?.driveFolderUrl || driveFolder) ? '#166534' : '#334155' }}>
               📁 {project?.clientName ? `${project.clientName}'s` : 'Client'} Drive Folder
             </span>
-            {project?.driveFolderUrl && (
+            {(project?.driveFolderUrl || driveFolder) && (
               <a
-                href={project.driveFolderUrl}
+                href={project?.driveFolderUrl || driveFolder}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn-primary"
@@ -274,13 +348,16 @@ export default function DeliverableUploadModal({ projectId, project, token, onCl
               </a>
             )}
           </div>
-          {!project?.driveFolderUrl && (
+          {!(project?.driveFolderUrl || driveFolder) && (
             <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
               <input
                 type="url"
                 placeholder="https://drive.google.com/drive/folders/…"
                 value={driveFolder}
-                onChange={e => setDriveFolder(e.target.value)}
+                onChange={e => {
+                  setDriveFolder(e.target.value);
+                  if (!url) setUrl(e.target.value);
+                }}
                 style={{ flex: 1, padding: '5px 8px', fontSize: '0.8rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                 disabled={uploading || savingDriveUrl}
               />
@@ -391,13 +468,13 @@ export default function DeliverableUploadModal({ projectId, project, token, onCl
             <div className="dlv-form-field">
               <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>✉️ Client Notification Email</span>
-                {clientEmail && clientEmail.includes('@') && (
+                {clientEmail && clientEmail.includes('@') && !clientEmail.includes('gtportal.com') && (
                   <span style={{ fontSize: '0.74rem', color: '#16a34a', fontWeight: 700 }}>✅ Email will be sent</span>
                 )}
               </label>
               <input
                 type="email"
-                placeholder="client@gmail.com"
+                placeholder={clientEmail || "client@gmail.com"}
                 value={clientEmail}
                 onChange={e => setClientEmail(e.target.value)}
                 disabled={uploading}
@@ -422,7 +499,7 @@ export default function DeliverableUploadModal({ projectId, project, token, onCl
               <label>Drive File / Deliverable Link <span className="opt">(defaults to Drive folder)</span></label>
               <input
                 type="url"
-                placeholder={project?.driveFolderUrl || "https://drive.google.com/…"}
+                placeholder={driveFolder || project?.driveFolderUrl || client?.driveFolderUrl || "https://drive.google.com/…"}
                 value={url}
                 onChange={e => setUrl(e.target.value)}
                 disabled={uploading}
@@ -459,13 +536,13 @@ export default function DeliverableUploadModal({ projectId, project, token, onCl
             <div className="dlv-form-field">
               <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>✉️ Client Notification Email</span>
-                {clientEmail && clientEmail.includes('@') && (
+                {clientEmail && clientEmail.includes('@') && !clientEmail.includes('gtportal.com') && (
                   <span style={{ fontSize: '0.74rem', color: '#16a34a', fontWeight: 700 }}>✅ Email will be sent</span>
                 )}
               </label>
               <input
                 type="email"
-                placeholder="client@gmail.com"
+                placeholder={clientEmail || "client@gmail.com"}
                 value={clientEmail}
                 onChange={e => setClientEmail(e.target.value)}
                 disabled={uploading}
@@ -580,13 +657,13 @@ export default function DeliverableUploadModal({ projectId, project, token, onCl
             <div className="dlv-form-field">
               <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>✉️ Client Notification Email</span>
-                {clientEmail && clientEmail.includes('@') && (
+                {clientEmail && clientEmail.includes('@') && !clientEmail.includes('gtportal.com') && (
                   <span style={{ fontSize: '0.74rem', color: '#16a34a', fontWeight: 700 }}>✅ Email will be sent</span>
                 )}
               </label>
               <input
                 type="email"
-                placeholder="client@gmail.com"
+                placeholder={clientEmail || "client@gmail.com"}
                 value={clientEmail}
                 onChange={e => setClientEmail(e.target.value)}
                 disabled={uploading}

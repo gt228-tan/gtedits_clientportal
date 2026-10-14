@@ -4,7 +4,7 @@ const WorkRequest = require('../models/WorkRequest');
 const Project = require('../models/Project');
 const ClientEmail = require('../models/ClientEmail');
 const { sendAdminNotification, sendClientRequestApprovalNotification, sendClientRequestRejectionNotification } = require('../utils/sendEmail');
-const { getClientContactEmail } = require('../utils/getClientEmail');
+const { getClientContactEmail, readClientFromRTDB } = require('../utils/getClientEmail');
 
 /**
  * Helper: Automatically create a Project when a WorkRequest is approved.
@@ -200,12 +200,22 @@ router.post('/client-email', async (req, res) => {
   }
 });
 
-// ── GET /api/work-requests/client-email — Fetch client's notification email ─
+// ── GET /api/work-requests/client-email — Fetch client's notification email & default drive folder ─
 router.get('/client-email', async (req, res) => {
   try {
-    const { clientId, clientName } = req.query;
-    const email = await getClientContactEmail({ clientId, clientName });
-    res.json({ contactEmail: email || '' });
+    let { clientId, clientName } = req.query;
+    if (clientId === '[object Object]' || !clientId) clientId = '';
+    if (clientName === '[object Object]' || !clientName) clientName = '';
+
+    const email = await getClientContactEmail(clientId, null, clientName);
+    let driveFolderUrl = '';
+    if (clientId) {
+      const c = await readClientFromRTDB(clientId);
+      if (c && c.driveFolderUrl) {
+        driveFolderUrl = c.driveFolderUrl;
+      }
+    }
+    res.json({ contactEmail: email || '', driveFolderUrl: driveFolderUrl || '' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

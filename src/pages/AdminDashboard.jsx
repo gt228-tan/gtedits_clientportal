@@ -866,7 +866,14 @@ export default function AdminDashboard() {
                     <div
                       key={p._id}
                       className="proj-card"
-                      onClick={() => setSelectedProject(p)}
+                      onClick={() => {
+                        const clientObj = clients[p.firebaseClientId] || Object.values(clients).find(c => (c.uid && c.uid === p.clientFirebaseUid) || (c.name && c.name.toLowerCase() === (p.clientName || '').toLowerCase()));
+                        setSelectedProject({
+                          ...p,
+                          driveFolderUrl: p.driveFolderUrl || clientObj?.driveFolderUrl || '',
+                          clientEmail: clientObj?.notificationEmail || clientObj?.contactEmail || '',
+                        });
+                      }}
                       style={isRevision ? { border: '1.5px solid #fca5a5', background: '#fff8f8' } : {}}
                     >
                       <div className="proj-card-header">
@@ -918,6 +925,7 @@ export default function AdminDashboard() {
             onDelete={handleDeleteProject}
             onStatusChange={handleStatusChange}
             statusLabels={PROJECT_STATUS_LABELS}
+            client={clients[selectedProject.firebaseClientId] || Object.values(clients).find(c => (c.uid && c.uid === selectedProject.clientFirebaseUid) || (c.name && c.name.toLowerCase() === (selectedProject.clientName || '').toLowerCase()))}
           />
         )}
 
@@ -1069,7 +1077,7 @@ export default function AdminDashboard() {
 }
 
 // ── Project Detail View ────────────────────────────────────────
-function ProjectDetailView({ project, getToken, onDelete, onStatusChange, statusLabels }) {
+function ProjectDetailView({ project, getToken, onDelete, onStatusChange, statusLabels, client }) {
   const [token, setToken] = useState(null);
   const [revisions, setRevisions] = useState([]);
   const [previewTarget, setPreviewTarget] = useState(null);
@@ -1184,6 +1192,7 @@ function ProjectDetailView({ project, getToken, onDelete, onStatusChange, status
           project={project}
           token={token}
           isAdmin={true}
+          client={client}
         />
       )}
       {!token && <div className="dlv-empty"><div className="spinner" /><p>Authenticating…</p></div>}
