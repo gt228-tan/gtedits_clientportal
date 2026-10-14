@@ -1,84 +1,86 @@
 /* ============================================================
-   theme.css — GT Client Portal · AeuxGlobal Reference Design Tokens
+   theme.css — GT Client Portal · Sleek Bento SaaS Design Tokens
+   Matching the reference Figma / Dribbble modern dashboard style
    ============================================================ */
 
 :root {
   /* ── Core Backgrounds ──────────────────────────────────── */
-  --bg-outer:        radial-gradient(circle at 50% 30%, #166548 0%, #0d3d2a 35%, #072418 70%, #03140c 100%);
-  --bg:              #071a12;         /* outer viewport fallback */
-  --bg-canvas:       #f2f5f3;         /* main content background */
-  --bg-card:         #ffffff;         /* pristine white card surface */
-  --bg-dark-card:    linear-gradient(135deg, #0d1b14 0%, #16281e 100%); /* hero metric card */
-  --bg-mint-card:    #d7ebd9;         /* light green accent card */
-  --bg-sidebar:      #0a120e;         /* deep black-emerald sidebar */
-  --bg-overlay:      rgba(6, 18, 13, 0.75);/* modal backdrop backdrop-filter blur */
+  --bg-outer:        #f4f5f6;         /* neutral edge-to-edge canvas */
+  --bg:              #f4f5f6;
+  --bg-canvas:       #f4f5f6;         /* reference image soft off-white background */
+  --bg-card:         #ffffff;         /* pristine white bento card */
+  --bg-dark-card:    linear-gradient(135deg, #1a1d1f 0%, #272b30 100%);
+  --bg-mint-card:    #e6f9f0;         /* light green accent card */
+  --bg-sidebar:      #fcfcfd;         /* clean modern light sidebar */
+  --bg-hover:        #f0f2f5;         /* hover background */
+  --bg-overlay:      rgba(15, 23, 42, 0.45);/* backdrop-filter blur modal */
 
   /* ── Input & Surface Colors ────────────────────────────── */
   --bg2:             #ffffff;         /* card surface */
-  --bg3:             #f8faf8;         /* input / inner bg */
-  --bg4:             #edf2ef;         /* hover surface */
-  --bg-input-dark:   #15221c;
-  --bg-hover-dark:   #1c2b22;
-  --bg-active-pill:  #1d2c23;
+  --bg3:             #f8f9fa;         /* inner container / input bg */
+  --bg4:             #f0f2f5;         /* hover surface */
+  --bg-input-dark:   #272b30;
+  --bg-hover-dark:   #272b30;
+  --bg-active-pill:  #ffffff;
 
   /* ── Borders ───────────────────────────────────────────── */
   --border:          rgba(0, 0, 0, 0.06);
-  --border-strong:   rgba(0, 0, 0, 0.12);
+  --border-strong:   rgba(0, 0, 0, 0.10);
   --border-dark:     rgba(255, 255, 255, 0.08);
   --border-accent:   rgba(34, 197, 94, 0.30);
   --border-focus:    #22c55e;
 
-  /* ── Accent — Neon Emerald & Dark Pill Palette ─────────── */
+  /* ── Accent — Vibrant Emerald & Dark Contrast Palette ──── */
   --accent:          #22c55e;
   --accent-h:        #16a34a;
-  --accent-dark:     #0f1714;
+  --accent-dark:     #1a1d1f;
   --accent-light:    #4ade80;
   --accent-soft:     rgba(34, 197, 94, 0.12);
-  --accent-glow:     rgba(34, 197, 94, 0.25);
+  --accent-glow:     rgba(34, 197, 94, 0.20);
 
   /* ── Semantic Status Colors ────────────────────────────── */
-  --green:           #16a34a;
+  --green:           #1a9e58;
   --green-h:         #15803d;
-  --green-bg:        #dcfce7;
-  --green-soft:      rgba(34, 197, 94, 0.12);
+  --green-bg:        #e6f9f0;
+  --green-soft:      rgba(26, 158, 88, 0.12);
 
   --yellow:          #d97706;
   --yellow-h:        #b45309;
   --yellow-bg:       #fef3c7;
   --yellow-soft:     rgba(245, 158, 11, 0.12);
 
-  --peach:           #9a3412;
-  --peach-bg:        #ffedd5;
+  --peach:           #ea580c;
+  --peach-bg:        #ffede5;
 
-  --red:             #dc2626;
-  --red-h:           #b91c1c;
-  --red-bg:          #fee2e2;
-  --red-soft:        rgba(239, 68, 68, 0.10);
+  --red:             #e03131;
+  --red-h:           #c92a2a;
+  --red-bg:          #ffe3e3;
+  --red-soft:        rgba(224, 49, 49, 0.10);
 
-  --blue:            #0284c7;
-  --blue-bg:         #e0f2fe;
-  --blue-soft:       rgba(2, 132, 199, 0.10);
+  --blue:            #2a85ff;
+  --blue-bg:         #ebf4ff;
+  --blue-soft:       rgba(42, 133, 255, 0.10);
 
   /* ── Text ───────────────────────────────────────────────── */
-  --text:            #0f1714;         /* primary text on light canvas */
-  --text-muted:      #64748b;         /* secondary / helper text */
-  --text-faint:      #94a3b8;         /* disabled / table header */
+  --text:            #1a1d1f;         /* deep charcoal black */
+  --text-muted:      #6f767e;         /* clean slate secondary text */
+  --text-faint:      #9a9fa5;         /* disabled / caption */
   --text-light:      #ffffff;         /* text on dark surfaces */
-  --text-light-muted:#8da194;         /* text on sidebar */
+  --text-light-muted:#6f767e;         /* text on sidebar */
   --text-accent:     var(--accent);
 
   /* ── Typography ─────────────────────────────────────────── */
-  --font-body:       'DM Sans', system-ui, -apple-system, sans-serif;
-  --font-display:    'DM Sans', 'Syne', system-ui, sans-serif;
+  --font-body:       'Plus Jakarta Sans', 'Inter', 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-display:    'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
 
   --text-xs:         0.72rem;
-  --text-sm:         0.85rem;
-  --text-base:       0.95rem;
-  --text-md:         1.1rem;
-  --text-lg:         1.25rem;
-  --text-xl:         1.5rem;
+  --text-sm:         0.84rem;
+  --text-base:       0.94rem;
+  --text-md:         1.08rem;
+  --text-lg:         1.22rem;
+  --text-xl:         1.45rem;
   --text-2xl:        1.85rem;
-  --text-3xl:        2.25rem;
+  --text-3xl:        2.35rem;
 
   --weight-normal:   400;
   --weight-medium:   500;
@@ -95,25 +97,25 @@
   --space-6:         1.5rem;
   --space-8:         2rem;
 
-  /* ── Radius ──────────────────────────────────────────────── */
+  /* ── Radius — Modern Rounded Bento Style ─────────────────── */
   --radius-sm:       8px;
-  --radius:          14px;
+  --radius:          12px;
   --radius-md:       16px;
   --radius-lg:       20px;
   --radius-xl:       24px;
   --radius-full:     9999px;
 
   /* ── Elevation / Shadows ────────────────────────────────── */
-  --shadow-xs:       0 1px 3px  rgba(0,0,0,0.04);
-  --shadow-sm:       0 2px 8px  rgba(0,0,0,0.04);
-  --shadow-md:       0 4px 20px rgba(0,0,0,0.04);
-  --shadow-lg:       0 10px 30px rgba(0,0,0,0.08);
-  --shadow-xl:       0 25px 60px rgba(0,0,0,0.25);
-  --shadow-frame:    0 35px 90px rgba(0,0,0,0.65), 0 0 60px rgba(34, 197, 94, 0.15);
+  --shadow-xs:       0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-sm:       0 2px 6px rgba(0, 0, 0, 0.04);
+  --shadow-md:       0 4px 16px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-lg:       0 12px 32px rgba(0, 0, 0, 0.06);
+  --shadow-xl:       0 20px 48px rgba(0, 0, 0, 0.08);
+  --shadow-frame:    none;
 
   /* Glow helpers */
-  --glow-accent:     0 0 20px rgba(34, 197, 94, 0.35);
-  --glow-green:      0 0 12px rgba(34, 197, 94, 0.35);
+  --glow-accent:     0 0 16px rgba(34, 197, 94, 0.25);
+  --glow-green:      0 0 10px rgba(34, 197, 94, 0.25);
 
   /* ── Z-Index Scale ───────────────────────────────────────── */
   --z-base:          1;
@@ -124,42 +126,43 @@
   --z-toast:         500;
 
   /* ── Layout ──────────────────────────────────────────────── */
-  --sidebar-width:   260px;
+  --sidebar-width:   240px;
 }
 
 [data-theme="dark"] {
   /* ── Core Backgrounds ──────────────────────────────────── */
-  --bg-outer:        radial-gradient(circle at 50% 30%, #0d3827 0%, #082418 35%, #04140d 70%, #020a06 100%);
-  --bg:              #030805;
-  --bg-canvas:       #09110c;         /* rich, deep dark emerald-charcoal canvas */
-  --bg-card:         #101c15;         /* dark card surface */
-  --bg-dark-card:    linear-gradient(135deg, #09140e 0%, #122219 100%);
-  --bg-mint-card:    #132b1e;
-  --bg-sidebar:      #060c08;         /* even deeper dark sidebar */
-  --bg-overlay:      rgba(3, 8, 5, 0.82);
+  --bg-outer:        #0f1214;
+  --bg:              #111315;
+  --bg-canvas:       #111315;         /* dark charcoal slate canvas */
+  --bg-card:         #1a1d1f;         /* dark bento card surface */
+  --bg-dark-card:    linear-gradient(135deg, #111315 0%, #1a1d1f 100%);
+  --bg-mint-card:    rgba(34, 197, 94, 0.12);
+  --bg-sidebar:      #1a1d1f;         /* dark sidebar */
+  --bg-hover:        #272b30;
+  --bg-overlay:      rgba(0, 0, 0, 0.75);
 
   /* ── Input & Surface Colors ────────────────────────────── */
-  --bg2:             #14221b;
-  --bg3:             #0c1611;
-  --bg4:             #192a21;
-  --bg-input-dark:   #121e17;
-  --bg-hover-dark:   #1b2d23;
-  --bg-active-pill:  #1f3428;
+  --bg2:             #1a1d1f;
+  --bg3:             #111315;
+  --bg4:             #272b30;
+  --bg-input-dark:   #272b30;
+  --bg-hover-dark:   #272b30;
+  --bg-active-pill:  #272b30;
 
   /* ── Borders ───────────────────────────────────────────── */
-  --border:          rgba(255, 255, 255, 0.08);
-  --border-strong:   rgba(255, 255, 255, 0.14);
-  --border-dark:     rgba(255, 255, 255, 0.12);
+  --border:          rgba(255, 255, 255, 0.07);
+  --border-strong:   rgba(255, 255, 255, 0.12);
+  --border-dark:     rgba(255, 255, 255, 0.10);
   --border-accent:   rgba(34, 197, 94, 0.35);
   --border-focus:    #22c55e;
 
   /* ── Accent — Neon Emerald & Dark Pill Palette ─────────── */
   --accent:          #22c55e;
   --accent-h:        #16a34a;
-  --accent-dark:     #eaf4ee;
+  --accent-dark:     #ffffff;
   --accent-light:    #4ade80;
   --accent-soft:     rgba(34, 197, 94, 0.15);
-  --accent-glow:     rgba(34, 197, 94, 0.35);
+  --accent-glow:     rgba(34, 197, 94, 0.30);
 
   /* ── Semantic Status Colors ────────────────────────────── */
   --green:           #22c55e;
@@ -185,23 +188,23 @@
   --blue-soft:       rgba(56, 189, 248, 0.12);
 
   /* ── Text ───────────────────────────────────────────────── */
-  --text:            #e8f2ec;         /* clean crisp off-white for high legibility */
-  --text-muted:      #8ea597;         /* smooth soft sage muted text */
-  --text-faint:      #5d7567;         /* subtle disabled/faint text */
-  --text-light:      #ffffff;         /* text on dark surfaces */
-  --text-light-muted:#8ea597;         /* text on sidebar */
+  --text:            #fcfcfd;         /* crisp white */
+  --text-muted:      #9a9fa5;         /* muted gray */
+  --text-faint:      #6f767e;
+  --text-light:      #ffffff;
+  --text-light-muted:#9a9fa5;
   --text-accent:     var(--accent);
 
   /* ── Elevation / Shadows ────────────────────────────────── */
-  --shadow-xs:       0 1px 3px  rgba(0,0,0,0.3);
-  --shadow-sm:       0 2px 8px  rgba(0,0,0,0.4);
-  --shadow-md:       0 4px 20px rgba(0,0,0,0.5);
-  --shadow-lg:       0 10px 30px rgba(0,0,0,0.6);
-  --shadow-xl:       0 25px 60px rgba(0,0,0,0.75);
+  --shadow-xs:       0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-sm:       0 2px 6px rgba(0, 0, 0, 0.35);
+  --shadow-md:       0 4px 16px rgba(0, 0, 0, 0.45);
+  --shadow-lg:       0 12px 32px rgba(0, 0, 0, 0.55);
+  --shadow-xl:       0 20px 48px rgba(0, 0, 0, 0.65);
 }
 
 /* ══════════════════════════════════════════════════════════
-   GLOBAL BASE
+   GLOBAL BASE — Fullscreen Edge-to-Edge
    ══════════════════════════════════════════════════════════ */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -211,7 +214,7 @@
 
 html {
   scroll-behavior: smooth;
-  background: #03140c;
+  background: var(--bg-canvas);
 }
 
 body {
@@ -219,16 +222,18 @@ body {
   font-size: var(--text-base);
   font-weight: var(--weight-normal);
   line-height: 1.5;
-  background: var(--bg-outer);
+  background: var(--bg-canvas);
   color: var(--text);
   min-height: 100vh;
   padding: 0;
   margin: 0;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #0a120e; }
-::-webkit-scrollbar-thumb { background: #1f3327; border-radius: 9999px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.12); border-radius: 9999px; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); }
 ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
