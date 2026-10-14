@@ -5214,6 +5214,90 @@ a:hover {
   }
 }
 
+/* ── Sidebar Header Row (Responsive) ────────────────────────── */
+.sidebar-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.sidebar-header-actions {
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-mobile-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #051a0d;
+  font-weight: 800;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+[data-theme="dark"] .header-mobile-avatar {
+  background: var(--accent);
+  color: #051a0d;
+}
+
+/* Mobile Theme Pill Switcher */
+.mobile-theme-pill {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  padding: 3px;
+  gap: 2px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .mobile-theme-pill {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.mobile-theme-pill .theme-pill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 0.82rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  color: var(--text-muted);
+}
+
+.mobile-theme-pill .theme-pill-icon.active {
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  color: #000000;
+  transform: scale(1.05);
+}
+
+[data-theme="dark"] .mobile-theme-pill .theme-pill-icon.active {
+  background: #17281f;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transform: scale(1.05);
+}
+
 @media (max-width: 768px) {
 
   .admin-layout,
@@ -5229,14 +5313,30 @@ a:hover {
     height: auto !important;
     border-right: none !important;
     border-bottom: 1px solid var(--border) !important;
-    padding: 12px 14px !important;
+    padding: 10px 14px !important;
     position: sticky !important;
     top: 0 !important;
     z-index: 100 !important;
+    background: var(--bg-sidebar) !important;
+    backdrop-filter: blur(12px) !important;
+  }
+
+  .sidebar-header-row {
+    margin-bottom: 6px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+  }
+
+  .sidebar-header-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
   }
 
   .sidebar-logo {
-    margin-bottom: 8px !important;
+    margin-bottom: 0 !important;
   }
 
   .sidebar-section-label {
@@ -5245,19 +5345,29 @@ a:hover {
 
   .sidebar-nav {
     flex-direction: row !important;
-    flex-wrap: wrap !important;
-    gap: 6px !important;
-    margin-top: 4px !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    gap: 8px !important;
+    margin-top: 6px !important;
+    padding: 2px 2px 4px 2px !important;
     flex: none !important;
     width: 100% !important;
   }
 
+  .sidebar-nav::-webkit-scrollbar {
+    display: none !important;
+  }
+
   .sidebar-item {
     width: auto !important;
-    flex: 1 1 auto !important;
-    height: 38px !important;
-    padding: 0 10px !important;
+    flex: 0 0 auto !important;
+    height: 36px !important;
+    padding: 0 12px !important;
     font-size: 0.8rem !important;
+    white-space: nowrap !important;
+    border-radius: 9999px !important;
   }
 
   .sidebar-footer {
@@ -5266,7 +5376,7 @@ a:hover {
 
   .admin-main {
     height: auto !important;
-    padding: 16px 14px !important;
+    padding: 16px 12px !important;
     overflow-x: hidden !important;
     width: 100% !important;
   }
@@ -5278,15 +5388,51 @@ a:hover {
   }
 
   .admin-topbar-title {
-    font-size: 1.4rem !important;
+    font-size: 1.35rem !important;
+    line-height: 1.2 !important;
   }
 
+  .admin-topbar-sub {
+    font-size: 0.82rem !important;
+  }
+
+  /* Client Portal Topbar Action Buttons Grid */
   .admin-topbar-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
     width: 100% !important;
-    justify-content: space-between !important;
   }
 
-  .topbar-search-box {
+  .admin-topbar-actions .topbar-user-avatar {
+    display: none !important;
+  }
+
+  .admin-topbar-actions .btn-create-pill {
+    grid-column: 1 / -1 !important;
+    order: -1 !important;
+    width: 100% !important;
+    height: 42px !important;
+    justify-content: center !important;
+    font-size: 0.92rem !important;
+    font-weight: 800 !important;
+    margin: 0 !important;
+  }
+
+  .admin-topbar-actions .btn-invoice,
+  .admin-topbar-actions .btn-secondary,
+  .admin-topbar-actions .btn-logout-topbar {
+    width: 100% !important;
+    height: 38px !important;
+    justify-content: center !important;
+    font-size: 0.78rem !important;
+    padding: 0 10px !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  .admin-topbar-actions .topbar-search-box {
+    grid-column: 1 / -1 !important;
     width: 100% !important;
   }
 
@@ -5294,8 +5440,37 @@ a:hover {
     width: 100% !important;
   }
 
+  /* Bento Overview Header */
   .bento-overview-card {
-    padding: 18px 16px !important;
+    padding: 16px 14px !important;
+  }
+
+  .bento-overview-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+
+  .bento-overview-title-group {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+  }
+
+  .bento-overview-title {
+    font-size: 1.15rem !important;
+  }
+
+  .bento-live-badge {
+    font-size: 0.7rem !important;
+    padding: 2px 8px !important;
+  }
+
+  .bento-timeframe-pill {
+    align-self: flex-start !important;
+    font-size: 0.75rem !important;
+    padding: 4px 10px !important;
   }
 
   .bento-stats-grid {
@@ -5303,8 +5478,193 @@ a:hover {
     gap: 12px !important;
   }
 
+  .bento-stat-card {
+    padding: 14px 12px !important;
+  }
+
+  .bento-stat-val {
+    font-size: 1.7rem !important;
+  }
+
   .admin-section {
-    padding: 18px 16px !important;
+    padding: 16px 14px !important;
+    border-radius: 14px !important;
+  }
+
+  /* Work Items Header & Filter Pills */
+  .admin-clients-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .admin-clients-title-group {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+  }
+
+  .client-filter-group {
+    width: 100% !important;
+    display: flex !important;
+    gap: 6px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 2px !important;
+  }
+
+  .filter-pill-btn {
+    flex: 1 1 auto !important;
+    padding: 0 10px !important;
+    height: 34px !important;
+    font-size: 0.76rem !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+  }
+
+  .filter-pill-btn .pill-count {
+    padding: 1px 6px !important;
+    font-size: 0.7rem !important;
+  }
+
+  /* Tables Mobile Scrolling */
+  .table-wrap,
+  .work-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 8px !important;
+  }
+
+  .work-table {
+    font-size: 0.78rem !important;
+    min-width: 520px !important;
+  }
+
+  .work-table th,
+  .work-table td {
+    padding: 8px 10px !important;
+  }
+
+  /* Work Request Client Cards */
+  .wr-client-card {
+    padding: 12px 14px !important;
+    gap: 8px !important;
+  }
+
+  .wr-client-card-top {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+  }
+
+  .wr-client-card-body {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+    font-size: 0.8rem !important;
+  }
+
+  /* Modals Mobile Sizing */
+  .modal-overlay {
+    padding: 8px !important;
+    align-items: center !important;
+  }
+
+  .modal-box,
+  .modal-card,
+  .wr-modal,
+  .wr-detail-modal,
+  .change-pass-box,
+  .dlv-upload-modal,
+  .dlv-preview-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 94vh !important;
+    padding: 16px 14px !important;
+    border-radius: 14px !important;
+    box-sizing: border-box !important;
+  }
+
+  .wr-modal-header,
+  .modal-header {
+    margin-bottom: 12px !important;
+    padding-bottom: 10px !important;
+  }
+
+  .wr-modal-title,
+  .modal-title {
+    font-size: 1.05rem !important;
+  }
+
+  .wr-modal-sub,
+  .modal-sub {
+    font-size: 0.75rem !important;
+  }
+
+  /* Forms & Grids on Mobile */
+  .wr-row-2,
+  .wr-category-row,
+  .work-form-grid,
+  .wr-detail-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .wr-field,
+  .form-group,
+  .wr-input-wrapper {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .wr-input,
+  .wr-textarea {
+    font-size: 0.84rem !important;
+    padding: 9px 10px !important;
+    box-sizing: border-box !important;
+  }
+
+  .wr-input.wr-input-currency {
+    padding-left: 28px !important;
+  }
+
+  .ai-planner-tabs {
+    display: flex !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+
+  .ai-planner-tab-btn {
+    flex: 1 !important;
+    text-align: center !important;
+    justify-content: center !important;
+    padding: 8px 10px !important;
+    font-size: 0.78rem !important;
+  }
+
+  .ai-cost-total-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .ai-cost-total-val {
+    align-self: flex-start !important;
+    font-size: 1.25rem !important;
+  }
+
+  .wr-actions {
+    flex-direction: column-reverse !important;
+    gap: 8px !important;
+  }
+
+  .wr-btn-cancel,
+  .wr-btn-submit {
+    width: 100% !important;
+    justify-content: center !important;
+    height: 42px !important;
   }
 
   .clean-stats-container {
@@ -5339,21 +5699,6 @@ a:hover {
     flex: 1 1 auto !important;
     justify-content: center !important;
   }
-
-  .btn-logout-topbar,
-  .btn-invoice {
-    width: 100% !important;
-    justify-content: center !important;
-  }
-
-  .work-table {
-    font-size: 0.78rem !important;
-  }
-
-  .work-table th,
-  .work-table td {
-    padding: 8px !important;
-  }
 }
 
 @media (max-width: 480px) {
@@ -5377,7 +5722,13 @@ a:hover {
   .clean-stats-grid {
     grid-template-columns: 1fr !important;
   }
+
+  .client-preview-stats {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
 }
+
 
 /* ── Sidebar Footer & Theme Toggle (Bottom Left Corner) ────────── */
 .sidebar-footer {

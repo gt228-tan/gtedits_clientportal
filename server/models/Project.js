@@ -46,6 +46,18 @@ const ProjectSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    amount: {
+      type: Number,
+      default: 0,
+    },
+    budget: {
+      type: Number,
+      default: 0,
+    },
+    workId: {
+      type: String, // Firebase RTDB key of the created work entry
+      default: null,
+    },
 
     // ── Status lifecycle ──────────────────────────────────────
     status: {

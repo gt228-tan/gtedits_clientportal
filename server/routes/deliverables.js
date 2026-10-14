@@ -732,7 +732,7 @@ router.post('/deliverables/:deliverableId/approve', requireAuth('client'), async
         approvedDeliverableId: d._id,
         approvedVersion: d.version,
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     // Send email notification to admin asynchronously
@@ -784,7 +784,7 @@ router.post('/deliverables/:deliverableId/request-revision', requireAuth('client
     const project = await Project.findByIdAndUpdate(
       d.projectId,
       { status: 'revision_requested' },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     // Send email notification to admin asynchronously

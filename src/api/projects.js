@@ -35,8 +35,8 @@ export async function updateProject(projectId, data, token) {
 }
 
 // ── Admin: update project status ─────────────────────────
-export async function updateProjectStatus(projectId, status, token) {
-  return apiRequest('PATCH', `/projects/${projectId}/status`, token, { status });
+export async function updateProjectStatus(projectId, status, token, extraData = {}) {
+  return apiRequest('PATCH', `/projects/${projectId}/status`, token, { status, ...extraData });
 }
 
 // ── Admin: delete project ─────────────────────────────────

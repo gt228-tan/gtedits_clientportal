@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
-import { db, ref, onValue } from '../firebase';
+import { db, ref, onValue, push } from '../firebase';
 import { useAuth, BRAND_NAME } from '../contexts/AuthContext';
 import Toast, { showToast } from '../components/Toast';
 import ChangePasswordModal from '../components/ChangePasswordModal';
@@ -7,7 +7,7 @@ import WorkRequestForm from '../components/WorkRequestForm';
 import DeliverablePreviewModal from '../components/DeliverablePreviewModal';
 import ThemeToggle from '../components/ThemeToggle';
 import { generateInvoice } from '../generateInvoice';
-import { buildWorkSections, computeTotals, formatDate } from '../utils';
+import { buildWorkSections, computeTotals, formatDate, getSectionMetaForSave } from '../utils';
 import { fetchClientRequests } from '../api/workRequests';
 import { fetchClientProjects } from '../api/projects';
 import { fetchClientDeliverables, approveDeliverable, requestRevision, downloadDeliverable } from '../api/deliverables';
@@ -151,6 +151,37 @@ export default function ClientPortal() {
       const token = await getToken();
       await approveDeliverable(d._id, token);
       showToast('✅ Deliverable approved!');
+
+      // If the project has an amount, ensure it is in the client's work section!
+      const projAmount = Number(selectedProject?.amount || selectedProject?.budget || 0);
+      if (projAmount > 0 && clientId) {
+        const clientWork = client?.work || {};
+        const existingEntry = Object.entries(clientWork).find(([wid, w]) => {
+          if (w.projectId && w.projectId === selectedProject._id) return true;
+          if (selectedProject.workId && wid === selectedProject.workId) return true;
+          if (w.desc && w.desc.trim().toLowerCase() === selectedProject.title.trim().toLowerCase()) return true;
+          return false;
+        });
+
+        if (!existingEntry) {
+          const today = new Date().toISOString().split('T')[0];
+          const workEntries = Object.entries(clientWork);
+          const sectionMeta = getSectionMetaForSave(today, workEntries, null);
+          const entry = {
+            desc: selectedProject.title.trim(),
+            qty: 1,
+            price: projAmount,
+            date: today,
+            status: 'Pending',
+            projectId: selectedProject._id,
+            sectionKey: sectionMeta.key,
+            sectionLabel: sectionMeta.label,
+            sectionType: sectionMeta.type,
+          };
+          await push(ref(db, `clients/${clientId}/work`), entry);
+        }
+      }
+
       loadDeliverables();
       loadProjects();
     } catch (err) {
@@ -213,16 +244,25 @@ export default function ClientPortal() {
 
       {/* ── Sidebar ── */}
       <aside className="admin-sidebar">
-        <div className="sidebar-brand">
-          <div className="sidebar-brand-inner">
-            <span className="sidebar-brand-icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-              </svg>
-            </span>
-            <div className="sidebar-brand-text">
-              <span className="sidebar-brand-title">EditDesk</span>
-              <span className="sidebar-brand-badge" style={{ background: 'var(--blue-bg)', color: 'var(--blue)', borderColor: 'rgba(37, 99, 235, 0.2)' }}>CLIENT</span>
+        <div className="sidebar-header-row">
+          <div className="sidebar-brand">
+            <div className="sidebar-brand-inner">
+              <span className="sidebar-brand-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                </svg>
+              </span>
+              <div className="sidebar-brand-text">
+                <span className="sidebar-brand-title">EditDesk</span>
+                <span className="sidebar-brand-badge" style={{ background: 'var(--blue-bg)', color: 'var(--blue)', borderColor: 'rgba(37, 99, 235, 0.2)' }}>CLIENT</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="sidebar-header-actions">
+            <ThemeToggle compact={true} />
+            <div className="header-mobile-avatar" title={`Client: ${name || 'User'}`}>
+              <span>{(name || 'C').charAt(0).toUpperCase()}</span>
             </div>
           </div>
         </div>
@@ -253,7 +293,7 @@ export default function ClientPortal() {
           >
             <span className="sidebar-item-icon">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 8 3H4a2 2 0 0 0-2 2v13a2 2 0 0 2 2Z" />
+                <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 8 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
               </svg>
             </span>
             <span className="sidebar-item-label">My Projects</span>

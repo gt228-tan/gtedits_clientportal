@@ -19,7 +19,7 @@ router.get('/client/mine', requireAuth('client'), async (req, res) => {
 
 router.post('/', requireAuth('admin'), async (req, res) => {
   try {
-    const { firebaseClientId, clientFirebaseUid, clientName, title, description, driveFolderUrl } = req.body;
+    const { firebaseClientId, clientFirebaseUid, clientName, title, description, driveFolderUrl, amount, budget } = req.body;
 
     if (!firebaseClientId || !clientFirebaseUid || !clientName || !title) {
       return res.status(400).json({ error: 'firebaseClientId, clientFirebaseUid, clientName and title are required' });
@@ -40,6 +40,7 @@ router.post('/', requireAuth('admin'), async (req, res) => {
       }
     }
 
+    const initialAmount = Number(amount || budget || 0);
     const project = await Project.create({
       firebaseClientId,
       clientFirebaseUid,
@@ -47,6 +48,8 @@ router.post('/', requireAuth('admin'), async (req, res) => {
       title,
       description: description || '',
       driveFolderUrl: finalDriveFolderUrl || '',
+      amount: initialAmount,
+      budget: initialAmount,
       status: 'project_created',
     });
 
@@ -63,7 +66,10 @@ router.get('/', requireAuth('admin'), async (req, res) => {
     if (req.query.clientUid)        filter.clientFirebaseUid = req.query.clientUid;
     if (req.query.firebaseClientId) filter.firebaseClientId  = req.query.firebaseClientId;
 
-    const projects = await Project.find(filter).sort({ createdAt: -1 }).lean();
+    const projects = await Project.find(filter)
+      .populate('workRequestId', 'budget costEstimation title type')
+      .sort({ createdAt: -1 })
+      .lean();
 
     // Attach latest RevisionRequest for each project if available
     const projectIds = projects.map(p => p._id);
@@ -80,10 +86,21 @@ router.get('/', requireAuth('admin'), async (req, res) => {
       }
     });
 
-    const enriched = projects.map(p => ({
-      ...p,
-      latestRevision: revisionMap[p._id.toString()] || null,
-    }));
+    const enriched = projects.map(p => {
+      const computedAmount = Number(
+        p.amount ||
+        p.budget ||
+        p.workRequestId?.budget ||
+        p.workRequestId?.costEstimation?.totalEstimatedCost ||
+        0
+      );
+      return {
+        ...p,
+        amount: computedAmount,
+        budget: computedAmount,
+        latestRevision: revisionMap[p._id.toString()] || null,
+      };
+    });
 
     res.json(enriched);
   } catch (err) {
@@ -111,16 +128,19 @@ router.get('/:projectId', requireAuth('admin'), async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 router.patch('/:projectId', requireAuth('admin'), async (req, res) => {
   try {
-    const { driveFolderUrl, title, description } = req.body;
+    const { driveFolderUrl, title, description, amount, budget, workId } = req.body;
     const updates = {};
     if (driveFolderUrl !== undefined) updates.driveFolderUrl = driveFolderUrl.trim();
     if (title !== undefined)          updates.title = title.trim();
     if (description !== undefined)    updates.description = description.trim();
+    if (amount !== undefined)         { updates.amount = Number(amount) || 0; updates.budget = Number(amount) || 0; }
+    else if (budget !== undefined)    { updates.amount = Number(budget) || 0; updates.budget = Number(budget) || 0; }
+    if (workId !== undefined)         updates.workId = workId;
 
     const project = await Project.findByIdAndUpdate(
       req.params.projectId,
       { $set: updates },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
     if (!project) return res.status(404).json({ error: 'Project not found' });
     res.json(project);
@@ -135,7 +155,7 @@ router.patch('/:projectId', requireAuth('admin'), async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 router.patch('/:projectId/status', requireAuth('admin'), async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, amount, budget, workId } = req.body;
     const VALID = [
       'work_request', 'approved', 'project_created', 'in_progress',
       'deliverable_uploaded', 'awaiting_client_approval', 'awaiting_client_response', 'approved_by_client',
@@ -145,10 +165,15 @@ router.patch('/:projectId/status', requireAuth('admin'), async (req, res) => {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
+    const updates = { status };
+    if (amount !== undefined)      { updates.amount = Number(amount) || 0; updates.budget = Number(amount) || 0; }
+    else if (budget !== undefined) { updates.amount = Number(budget) || 0; updates.budget = Number(budget) || 0; }
+    if (workId !== undefined)      updates.workId = workId;
+
     const project = await Project.findByIdAndUpdate(
       req.params.projectId,
-      { status },
-      { new: true, runValidators: true }
+      { $set: updates },
+      { returnDocument: 'after', runValidators: true }
     );
     if (!project) return res.status(404).json({ error: 'Project not found' });
     res.json(project);

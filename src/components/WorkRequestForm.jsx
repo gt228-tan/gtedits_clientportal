@@ -990,7 +990,7 @@ export default function WorkRequestForm({ clientId, clientFirebaseUid, clientNam
                     </div>
 
                     <div className="wr-field">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginBottom: '4px' }}>
                         <label className="wr-label" style={{ marginBottom: 0 }}>Raw Footage / Assets Link</label>
                         {driveFolderUrl && (
                           <button

@@ -16,7 +16,8 @@ import WorkRequestsPanel from '../components/WorkRequestsPanel';
 import ProjectDeliverablesSection from '../components/ProjectDeliverablesSection';
 import DeliverablePreviewModal from '../components/DeliverablePreviewModal';
 import ThemeToggle from '../components/ThemeToggle';
-import { fetchProjects, createProject, deleteProject, updateProjectStatus, fetchRevisions, sendClientPaymentReminder } from '../api/projects';
+import { fetchProjects, createProject, deleteProject, updateProject, updateProjectStatus, fetchRevisions, sendClientPaymentReminder } from '../api/projects';
+import { getSectionMetaForSave } from '../utils';
 
 import { API_BASE } from '../api/config';
 
@@ -57,6 +58,7 @@ export default function AdminDashboard() {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [createForClient, setCreateForClient] = useState(null); // { firebaseClientId, clientFirebaseUid, clientName }
   const [newProjectTitle, setNewProjectTitle] = useState('');
+  const [newProjectAmount, setNewProjectAmount] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
   const [newProjectDriveUrl, setNewProjectDriveUrl] = useState('');
   const [createBusy, setCreateBusy] = useState(false);
@@ -371,6 +373,7 @@ export default function AdminDashboard() {
     setCreateBusy(true);
     try {
       const token = await getToken();
+      const parsedAmount = parseFloat(newProjectAmount) || 0;
       await createProject({
         firebaseClientId: createForClient.firebaseClientId,
         clientFirebaseUid: createForClient.clientFirebaseUid,
@@ -378,10 +381,13 @@ export default function AdminDashboard() {
         title: newProjectTitle.trim(),
         description: newProjectDesc,
         driveFolderUrl: newProjectDriveUrl.trim(),
+        amount: parsedAmount,
+        budget: parsedAmount,
       }, token);
       showToast('🎉 Project created!');
       setShowCreateProject(false);
       setNewProjectTitle('');
+      setNewProjectAmount('');
       setNewProjectDesc('');
       setNewProjectDriveUrl('');
       setCreateForClient(null);
@@ -467,8 +473,87 @@ export default function AdminDashboard() {
   const handleStatusChange = async (id, status) => {
     try {
       const token = await getToken();
-      const updated = await updateProjectStatus(id, status, token);
-      showToast('✅ Status updated!');
+      const proj = projects.find(p => p._id === id) || selectedProject || {};
+      let projectAmount = Number(proj.amount || proj.budget || 0);
+      let workId = proj.workId || null;
+
+      // ── If project is completed, add directly to client's work section! ──
+      if (status === 'completed') {
+        const targetClientId = proj.firebaseClientId || Object.keys(clients).find(k =>
+          clients[k]?.uid === proj.clientFirebaseUid ||
+          (clients[k]?.name && clients[k].name.toLowerCase() === (proj.clientName || '').toLowerCase())
+        );
+
+        if (targetClientId) {
+          // If project amount is not yet specified, prompt admin
+          if (projectAmount <= 0) {
+            const entered = prompt(
+              `Project "${proj.title}" does not have an amount / price set.\n` +
+              `Enter amount to add to ${proj.clientName || 'client'}'s work section (₹):`,
+              ''
+            );
+            if (entered !== null && entered.trim() !== '') {
+              const parsed = parseFloat(entered.trim());
+              if (!isNaN(parsed) && parsed >= 0) {
+                projectAmount = parsed;
+              }
+            }
+          }
+
+          if (projectAmount > 0) {
+            const clientObj = clients[targetClientId] || {};
+            const clientWork = clientObj.work || {};
+
+            // Check if already in work section (by projectId, workId, or exact title)
+            const existingEntry = Object.entries(clientWork).find(([wid, w]) => {
+              if (w.projectId && w.projectId === id) return true;
+              if (workId && wid === workId) return true;
+              if (w.desc && w.desc.trim().toLowerCase() === proj.title.trim().toLowerCase()) return true;
+              return false;
+            });
+
+            if (existingEntry) {
+              const [existingWid, existingW] = existingEntry;
+              workId = existingWid;
+              await update(ref(db, `clients/${targetClientId}/work/${existingWid}`), {
+                projectId: id,
+                desc: proj.title.trim(),
+                price: Number(existingW.price || existingW.amt) > 0 ? Number(existingW.price || existingW.amt) : projectAmount,
+              });
+            } else {
+              const today = new Date().toISOString().split('T')[0];
+              const workEntries = Object.entries(clientWork);
+              const sectionMeta = getSectionMetaForSave(today, workEntries, null);
+              const entry = {
+                desc: proj.title.trim(),
+                qty: 1,
+                price: projectAmount,
+                date: today,
+                status: 'Pending',
+                projectId: id,
+                sectionKey: sectionMeta.key,
+                sectionLabel: sectionMeta.label,
+                sectionType: sectionMeta.type,
+              };
+
+              const newWorkRef = await push(ref(db, `clients/${targetClientId}/work`), entry);
+              workId = newWorkRef.key;
+            }
+          }
+        }
+      }
+
+      const updated = await updateProjectStatus(id, status, token, {
+        amount: projectAmount,
+        workId: workId,
+      });
+
+      if (status === 'completed' && projectAmount > 0) {
+        showToast(`✅ Status completed & ₹${projectAmount.toLocaleString('en-IN')} added to ${proj.clientName || 'client'}'s work!`);
+      } else {
+        showToast('✅ Status updated!');
+      }
+
       setSelectedProject(updated);
       loadProjects();
     } catch (err) {
@@ -561,7 +646,7 @@ export default function AdminDashboard() {
 
       {/* ── Sidebar ── */}
       <aside className="admin-sidebar">
-        <div className="sidebar-logo">
+        <div className="sidebar-header-row">
           <div className="sidebar-brand">
             <span className="sidebar-logo-emblem">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -573,6 +658,13 @@ export default function AdminDashboard() {
             <div className="sidebar-brand-text">
               <span className="sidebar-brand-title">{BRAND_NAME}</span>
               <span className="sidebar-brand-badge">ADMIN</span>
+            </div>
+          </div>
+
+          <div className="sidebar-header-actions">
+            <ThemeToggle compact={true} />
+            <div className="header-mobile-avatar" title={`Admin: ${BRAND_NAME}`}>
+              <span>{BRAND_NAME.charAt(0).toUpperCase()}</span>
             </div>
           </div>
         </div>
@@ -1110,7 +1202,9 @@ export default function AdminDashboard() {
             getToken={getToken}
             onDelete={handleDeleteProject}
             onStatusChange={handleStatusChange}
+            onProjectUpdated={(updated) => { setSelectedProject(updated); loadProjects(); }}
             statusLabels={PROJECT_STATUS_LABELS}
+            clients={clients}
             client={clients[selectedProject.firebaseClientId] || Object.values(clients).find(c => (c.uid && c.uid === selectedProject.clientFirebaseUid) || (c.name && c.name.toLowerCase() === (selectedProject.clientName || '').toLowerCase()))}
           />
         )}
@@ -1214,6 +1308,23 @@ export default function AdminDashboard() {
                 />
               </div>
               <div className="dlv-form-field">
+                <label>Amount / Price (₹) <span className="opt">(optional)</span></label>
+                <div className="input-prefix-wrap">
+                  <span className="input-prefix">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 500"
+                    value={newProjectAmount}
+                    onChange={e => setNewProjectAmount(e.target.value)}
+                    disabled={createBusy}
+                  />
+                </div>
+                <span className="dlv-hint" style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                  When status is set to Completed, this amount is directly added to the client's work section.
+                </span>
+              </div>
+              <div className="dlv-form-field">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                   <label style={{ margin: 0 }}>Google Drive Folder Link <span className="opt">(optional)</span></label>
                   <a
@@ -1263,7 +1374,7 @@ export default function AdminDashboard() {
 }
 
 // ── Project Detail View ────────────────────────────────────────
-function ProjectDetailView({ project, getToken, onDelete, onStatusChange, statusLabels, client }) {
+function ProjectDetailView({ project, getToken, onDelete, onStatusChange, onProjectUpdated, statusLabels, client, clients }) {
   const [token, setToken] = useState(null);
   const [revisions, setRevisions] = useState([]);
   const [previewTarget, setPreviewTarget] = useState(null);
@@ -1275,6 +1386,36 @@ function ProjectDetailView({ project, getToken, onDelete, onStatusChange, status
       fetchRevisions(project._id, t).then(setRevisions).catch(console.error);
     }).catch(console.error);
   }, [project._id, getToken]);
+
+  const handleEditProjectAmount = async () => {
+    const currentAmt = Number(project.amount || project.budget || 0);
+    const entered = prompt(`Edit amount / price for "${project.title}" (₹):`, currentAmt || '');
+    if (entered === null) return;
+    const parsed = parseFloat(entered.trim());
+    if (isNaN(parsed) || parsed < 0) {
+      showToast('⚠️ Please enter a valid number', 'warn');
+      return;
+    }
+    try {
+      const t = await getToken();
+      const updated = await updateProject(project._id, { amount: parsed, budget: parsed }, t);
+      showToast(`✅ Price updated to ₹${parsed.toLocaleString('en-IN')}`);
+      if (onProjectUpdated) onProjectUpdated(updated);
+
+      // If already added to client's work section, sync the price there too!
+      const cid = project.firebaseClientId;
+      if (cid && clients?.[cid]?.work) {
+        const matchEntry = Object.entries(clients[cid].work).find(([wid, w]) =>
+          (w.projectId && w.projectId === project._id) || (project.workId && wid === project.workId)
+        );
+        if (matchEntry) {
+          await update(ref(db, `clients/${cid}/work/${matchEntry[0]}`), { price: parsed });
+        }
+      }
+    } catch (err) {
+      showToast(`❌ ${err.message}`, 'warn');
+    }
+  };
 
   const NEXT_STATUSES = [
     'work_request', 'approved', 'project_created', 'in_progress',
@@ -1290,6 +1431,20 @@ function ProjectDetailView({ project, getToken, onDelete, onStatusChange, status
           <p className="proj-card-client">{project.clientName}</p>
           <h2 className="proj-detail-title">{project.title}</h2>
           {project.description && <p className="proj-card-desc">{project.description}</p>}
+          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Project Amount:</span>
+            <span style={{ fontSize: '1rem', fontWeight: 800, color: '#16a34a' }}>
+              ₹{(Number(project.amount || project.budget || 0)).toLocaleString('en-IN')}
+            </span>
+            <button
+              type="button"
+              className="dlv-btn dlv-btn--outline"
+              style={{ padding: '2px 8px', fontSize: '12px' }}
+              onClick={handleEditProjectAmount}
+            >
+              ✏️ Edit Price
+            </button>
+          </div>
         </div>
         <div className="proj-detail-meta-right">
           <span className={`dlv-status-badge dlv-status--${sc.color}`}>{sc.label}</span>
@@ -1720,7 +1875,7 @@ function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, 
           title="Create Project"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 8 3H4a2 2 0 0 0-2 2v13a2 2 0 0 2 2Z" />
+            <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 8 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
           </svg>
           Project
         </button>

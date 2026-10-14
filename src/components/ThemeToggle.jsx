@@ -1,7 +1,22 @@
 import { useTheme } from '../contexts/ThemeContext';
 
-export default function ThemeToggle({ className = '' }) {
-  const { theme, setTheme } = useTheme();
+export default function ThemeToggle({ className = '', compact = false }) {
+  const { theme, setTheme, toggleTheme } = useTheme();
+
+  if (compact) {
+    return (
+      <button
+        type="button"
+        className={`mobile-theme-pill ${theme === 'dark' ? 'is-dark' : 'is-light'} ${className}`}
+        onClick={toggleTheme}
+        title={`Currently in ${theme === 'dark' ? 'Dark' : 'Light'} Mode. Tap to switch.`}
+        aria-label="Toggle light or dark theme mode"
+      >
+        <span className={`theme-pill-icon ${theme === 'light' ? 'active' : ''}`} title="Light Mode">☀️</span>
+        <span className={`theme-pill-icon ${theme === 'dark' ? 'active' : ''}`} title="Dark Mode">🌙</span>
+      </button>
+    );
+  }
 
   return (
     <div className={`sidebar-theme-toggle ${className}`}>
@@ -33,3 +48,4 @@ export default function ThemeToggle({ className = '' }) {
     </div>
   );
 }
+

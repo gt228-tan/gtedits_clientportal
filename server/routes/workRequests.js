@@ -56,6 +56,7 @@ async function createProjectForApprovedRequest(workRequest, options = {}) {
         projectDescription = `Auto-created from approved Work Request (${workRequest.category} - ${workRequest.type})`;
       }
 
+      const initialAmount = Number(workRequest.budget || workRequest.costEstimation?.totalEstimatedCost || 0);
       // Create new Project
       project = await Project.create({
         firebaseClientId: workRequest.clientId,
@@ -64,6 +65,8 @@ async function createProjectForApprovedRequest(workRequest, options = {}) {
         title: projectTitle,
         description: projectDescription,
         status: 'project_created',
+        amount: initialAmount,
+        budget: initialAmount,
         workRequestId: workRequest._id,
       });
 
@@ -191,7 +194,7 @@ router.post('/client-email', async (req, res) => {
     const record = await ClientEmail.findOneAndUpdate(
       { $or: [{ clientId }, { clientName }] },
       { clientId, clientName, contactEmail: emailToSave },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
     console.log(`✅ Saved notification email "${emailToSave}" for client "${clientName || clientId}" in MongoDB`);
     res.json(record);
@@ -299,7 +302,7 @@ router.put('/:id', async (req, res) => {
         updateData[key] = req.body[key];
       }
     }
-    const doc = await WorkRequest.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
+    const doc = await WorkRequest.findByIdAndUpdate(req.params.id, updateData, { returnDocument: 'after', runValidators: true });
     if (!doc) return res.status(404).json({ error: 'Work Request not found' });
     res.json(doc);
   } catch (err) {
@@ -472,7 +475,7 @@ router.post('/:id/reject', async (req, res) => {
     const doc = await WorkRequest.findByIdAndUpdate(
       req.params.id,
       { status: 'Rejected', adminNote: rejectReason || 'Rejected by Admin' },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     if (!doc) {
@@ -519,7 +522,7 @@ router.patch('/:id/status', async (req, res) => {
     const doc = await WorkRequest.findByIdAndUpdate(
       req.params.id,
       { status, adminNote: adminNote || '' },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
     if (!doc) return res.status(404).json({ error: 'Not found' });
 
