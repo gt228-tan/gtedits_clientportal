@@ -563,46 +563,82 @@ export default function AdminDashboard() {
       <aside className="admin-sidebar">
         <div className="sidebar-logo">
           <div className="sidebar-brand">
-            <span>GT</span> {BRAND_NAME}
+            <span className="sidebar-logo-emblem">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                <polyline points="2 17 12 22 22 17" />
+                <polyline points="2 12 12 17 22 12" />
+              </svg>
+            </span>
+            <div className="sidebar-brand-text">
+              <span className="sidebar-brand-title">{BRAND_NAME}</span>
+              <span className="sidebar-brand-badge">ADMIN</span>
+            </div>
           </div>
-          <button className="btn-logout-sidebar" onClick={logout} title="Sign Out">
-            🔒 Sign Out
-          </button>
         </div>
 
         <nav className="sidebar-nav">
-          <span className="sidebar-section-label">Menu</span>
+          <span className="sidebar-section-label">Navigation</span>
 
           <button
             className={`sidebar-item${activeTab === 'dashboard' ? ' active' : ''}`}
             onClick={() => { setActiveTab('dashboard'); setSelectedProject(null); }}
           >
-            <span>🏠</span> Dashboard
+            <span className="sidebar-item-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                <rect x="3" y="14" width="7" height="7" rx="1.5" />
+              </svg>
+            </span>
+            <span className="sidebar-item-label">Dashboard</span>
           </button>
+
           <button
             className={`sidebar-item${activeTab === 'projects' ? ' active' : ''}`}
             onClick={() => { setActiveTab('projects'); setSelectedProject(null); }}
           >
-            <span>📁</span> Projects
+            <span className="sidebar-item-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 8 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+              </svg>
+            </span>
+            <span className="sidebar-item-label">Projects</span>
             {revisionCount > 0 && (
-              <span className="wr-sidebar-badge" style={{ background: '#dc2626', color: '#ffffff' }}>
+              <span className="wr-sidebar-badge badge-revision">
                 {revisionCount}
               </span>
             )}
           </button>
+
           <button
             className={`sidebar-item${activeTab === 'requests' ? ' active' : ''}`}
             onClick={() => setActiveTab('requests')}
           >
-            <span>📨</span> Work Requests
+            <span className="sidebar-item-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="20" height="16" x="2" y="4" rx="2" />
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
+            </span>
+            <span className="sidebar-item-label">Work Requests</span>
             {pendingCount > 0 && (
-              <span className="wr-sidebar-badge">{pendingCount}</span>
+              <span className="wr-sidebar-badge badge-pending">{pendingCount}</span>
             )}
           </button>
         </nav>
 
         <div className="sidebar-footer">
           <ThemeToggle />
+          <button className="sidebar-logout-btn" onClick={logout} title="Sign Out">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span>Sign Out</span>
+          </button>
         </div>
       </aside>
 
@@ -611,21 +647,95 @@ export default function AdminDashboard() {
 
         <div className="admin-topbar">
           <div className="admin-topbar-inner">
-            <div>
-              <h1>
+            <div className="admin-topbar-title-group">
+              <h1 className="admin-topbar-title">
                 {activeTab === 'requests' ? 'Work Requests'
                   : activeTab === 'projects' ? (selectedProject ? selectedProject.title : 'Projects')
-                    : 'Admin Dashboard'}
+                    : 'Dashboard'}
               </h1>
-              <p>Welcome back, {BRAND_NAME} 👋</p>
+              <p className="admin-topbar-sub">Welcome back, {BRAND_NAME} 👋</p>
             </div>
-            <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+
+            <div className="admin-topbar-actions">
+              {/* Topbar Search Pill */}
+              <div className="topbar-search-box">
+                <span className="search-icon">🔍</span>
+                <input
+                  type="text"
+                  placeholder="Search anything…"
+                  value={clientSearch}
+                  onChange={e => setClientSearch(e.target.value)}
+                />
+                {clientSearch && (
+                  <button
+                    type="button"
+                    className="search-clear-btn"
+                    onClick={() => setClientSearch('')}
+                    title="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Action Button: Create / Add Client */}
+              {activeTab === 'dashboard' && (
+                <button
+                  type="button"
+                  className="btn-create-pill"
+                  onClick={() => {
+                    const el = document.getElementById('quick-add-client-input');
+                    if (el) {
+                      el.focus();
+                      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                  }}
+                >
+                  <span className="btn-create-icon">＋</span> Add Client
+                </button>
+              )}
+
+              {activeTab === 'projects' && !selectedProject && (
+                <button
+                  type="button"
+                  className="btn-create-pill"
+                  onClick={() => setShowCreateProject(true)}
+                >
+                  <span className="btn-create-icon">＋</span> Create Project
+                </button>
+              )}
+
               {activeTab === 'projects' && selectedProject && (
                 <button className="btn-secondary" onClick={() => setSelectedProject(null)}>
                   ← All Projects
                 </button>
               )}
-              <button className="btn-logout-topbar" onClick={logout}>
+
+              {/* Notification Bell */}
+              <button
+                type="button"
+                className="topbar-icon-btn"
+                title={`${pendingCount} pending requests, ${revisionCount} revisions`}
+                onClick={() => {
+                  if (revisionCount > 0) { setActiveTab('projects'); setSelectedProject(null); }
+                  else if (pendingCount > 0) { setActiveTab('requests'); }
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                  <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                </svg>
+                {(pendingCount > 0 || revisionCount > 0) && (
+                  <span className="topbar-notif-dot" />
+                )}
+              </button>
+
+              {/* User Avatar */}
+              <div className="topbar-user-avatar" title={`Admin: ${BRAND_NAME}`}>
+                <span>{BRAND_NAME.charAt(0).toUpperCase()}</span>
+              </div>
+
+              <button className="btn-logout-topbar" onClick={logout} title="Sign Out">
                 🔒 Sign Out
               </button>
             </div>
@@ -635,35 +745,111 @@ export default function AdminDashboard() {
         {/* ── Dashboard tab ── */}
         {activeTab === 'dashboard' && (
           <>
-            <section className="summary-row">
-              <div className="sum-card sum-paid">
-                <div>
-                  <p className="sum-label">Total Revenue Earned</p>
-                  <p className="sum-value">₹{totalEarned.toLocaleString('en-IN')}</p>
+            <div className="bento-overview-card">
+              <div className="bento-overview-header">
+                <div className="bento-overview-title-group">
+                  <h2 className="bento-overview-title">Overview</h2>
+                  <span className="bento-live-badge">
+                    <span className="live-dot" /> Live Updates
+                  </span>
                 </div>
-                <div className="sum-icon">✅</div>
-              </div>
-              <div className="sum-card sum-pending">
-                <div>
-                  <p className="sum-label">Pending Payments</p>
-                  <p className="sum-value">₹{totalPending.toLocaleString('en-IN')}</p>
+                <div className="bento-timeframe-pill">
+                  <span>All time</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
                 </div>
-                <div className="sum-icon">⏳</div>
               </div>
-              <div className="sum-card sum-total">
-                <div>
-                  <p className="sum-label">Active Clients</p>
-                  <p className="sum-value">{clientEntries.length}</p>
-                </div>
-                <div className="sum-icon">👥</div>
-              </div>
-            </section>
 
-            <section className="admin-add-section">
-              <h2 className="section-title">➕ Add New Client</h2>
-              <form className="admin-add-form" onSubmit={handleAddClient} autoComplete="off">
-                <div className="admin-form-row">
+              <div className="bento-stats-grid">
+                {/* Revenue Card */}
+                <div className="bento-stat-card stat-card-earned">
+                  <div className="bento-stat-top">
+                    <div className="bento-stat-icon-wrap">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
+                        <path d="M12 18V6" />
+                      </svg>
+                    </div>
+                    <span className="bento-stat-label">Total Revenue Earned</span>
+                  </div>
+                  <div className="bento-stat-bottom">
+                    <span className="bento-stat-val">₹{totalEarned.toLocaleString('en-IN')}</span>
+                    <span className="bento-trend-pill trend-up">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="m18 15-6-6-6 6" />
+                      </svg>
+                      Collected
+                    </span>
+                  </div>
+                </div>
+
+                {/* Pending Payments Card */}
+                <div className="bento-stat-card stat-card-pending">
+                  <div className="bento-stat-top">
+                    <div className="bento-stat-icon-wrap icon-pending">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                    </div>
+                    <span className="bento-stat-label">Pending Payments</span>
+                  </div>
+                  <div className="bento-stat-bottom">
+                    <span className="bento-stat-val val-pending">₹{totalPending.toLocaleString('en-IN')}</span>
+                    <span className="bento-trend-pill trend-warning">
+                      Due
+                    </span>
+                  </div>
+                </div>
+
+                {/* Active Clients Card */}
+                <div className="bento-stat-card stat-card-clients">
+                  <div className="bento-stat-top">
+                    <div className="bento-stat-icon-wrap icon-clients">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                      </svg>
+                    </div>
+                    <span className="bento-stat-label">Active Clients</span>
+                  </div>
+                  <div className="bento-stat-bottom">
+                    <span className="bento-stat-val">{clientEntries.length}</span>
+                    <span className="bento-trend-pill trend-neutral">
+                      In Portal
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Client Setup / Avatars banner strip */}
+              <div className="bento-client-strip">
+                <div className="bento-client-strip-info">
+                  <div className="bento-client-avatars">
+                    {clientEntries.slice(0, 5).map(([id, c]) => (
+                      <div key={id} className="bento-avatar-chip" title={c.name}>
+                        {c.name.charAt(0).toUpperCase()}
+                      </div>
+                    ))}
+                    {clientEntries.length > 5 && (
+                      <div className="bento-avatar-chip avatar-more" title={`${clientEntries.length - 5} more clients`}>
+                        +{clientEntries.length - 5}
+                      </div>
+                    )}
+                  </div>
+                  <div className="bento-client-strip-text">
+                    <strong>Quick Client Setup</strong>
+                    <span>Add client name & notification email to instantly create portal credentials & drive</span>
+                  </div>
+                </div>
+
+                <form className="bento-quick-add-form" onSubmit={handleAddClient} autoComplete="off">
                   <input
+                    id="quick-add-client-input"
                     type="text"
                     placeholder="Client name…"
                     value={newName}
@@ -672,16 +858,16 @@ export default function AdminDashboard() {
                   />
                   <input
                     type="email"
-                    placeholder="Notification Email (e.g. client@gmail.com)…"
+                    placeholder="Notification Email (optional)…"
                     value={newNotificationEmail}
                     onChange={e => setNewNotificationEmail(e.target.value)}
                   />
                   <button type="submit" className="btn-add-client" disabled={addBusy}>
-                    {addBusy ? 'Creating…' : 'Add Client'}
+                    {addBusy ? 'Creating…' : '＋ Add Client'}
                   </button>
-                </div>
-              </form>
-            </section>
+                </form>
+              </div>
+            </div>
 
             <section className="admin-section">
               <div className="admin-clients-header">
@@ -714,7 +900,7 @@ export default function AdminDashboard() {
                     <span className="search-icon">🔍</span>
                     <input
                       type="text"
-                      placeholder="Search client or email…"
+                      placeholder="Search client"
                       value={clientSearch}
                       onChange={e => setClientSearch(e.target.value)}
                     />
@@ -1211,15 +1397,17 @@ function ProjectDetailView({ project, getToken, onDelete, onStatusChange, status
 
 // ── Client Card ────────────────────────────────────────────
 function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, onUpdateEmail, onCreateDriveFolder, onPreview, onDelete, onCreateProject, onSendReminder, isSendingReminder }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(null); // 'top' | 'bottom' | null
   const [copied, setCopied] = useState(false);
-  const menuRef = useRef(null);
+  const topMenuRef = useRef(null);
+  const bottomMenuRef = useRef(null);
 
   useEffect(() => {
     if (!menuOpen) return;
     function handleClickOutside(e) {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setMenuOpen(false);
+      const activeRef = menuOpen === 'top' ? topMenuRef : bottomMenuRef;
+      if (activeRef.current && !activeRef.current.contains(e.target)) {
+        setMenuOpen(null);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -1249,8 +1437,111 @@ function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, 
 
   const truncatedLogin = email.length > 16 ? email.slice(0, 10) + '...' : email;
 
+  const renderDropdown = (placement) => (
+    <div className={`clean-card-dropdown dropdown-${placement}`}>
+      <div className="clean-dropdown-header">Client Settings</div>
+
+      <button
+        type="button"
+        className="clean-dropdown-item"
+        onClick={() => {
+          setMenuOpen(null);
+          if (hasAuth) { onShowCred(); }
+          else { onSetupAuth(); }
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="7.5" cy="15.5" r="5.5" />
+          <path d="m21 2-9.6 9.6" />
+          <path d="m15.5 7.5 3 3L22 7l-3-3" />
+        </svg>
+        {hasAuth ? 'Credentials' : 'Setup Credentials'}
+      </button>
+
+      <button
+        type="button"
+        className="clean-dropdown-item"
+        onClick={() => {
+          setMenuOpen(null);
+          onReset();
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+          <path d="M3 3v5h5" />
+        </svg>
+        Reset Password
+      </button>
+
+      <button
+        type="button"
+        className="clean-dropdown-item"
+        onClick={() => {
+          setMenuOpen(null);
+          onUpdateEmail();
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect width="20" height="16" x="2" y="4" rx="2" />
+          <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+        </svg>
+        Notifications
+      </button>
+
+      {client.driveFolderUrl ? (
+        <a
+          href={client.driveFolderUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="clean-dropdown-item"
+          onClick={() => setMenuOpen(null)}
+          style={{ textDecoration: 'none' }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+          </svg>
+          Open Drive Folder
+        </a>
+      ) : (
+        <button
+          type="button"
+          className="clean-dropdown-item"
+          onClick={() => {
+            setMenuOpen(null);
+            onCreateDriveFolder(id, client.name, client.notificationEmail);
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            <line x1="12" y1="11" x2="12" y2="17" />
+            <line x1="9" y1="14" x2="15" y2="14" />
+          </svg>
+          Create Drive Folder
+        </button>
+      )}
+
+      <div className="clean-dropdown-divider" />
+
+      <button
+        type="button"
+        className="clean-dropdown-item item-danger"
+        onClick={() => {
+          setMenuOpen(null);
+          onDelete();
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 6h18" />
+          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+        </svg>
+        Delete Client
+      </button>
+    </div>
+  );
+
   return (
-    <div className="clean-client-card">
+    <div className={`clean-client-card${menuOpen ? ' has-menu-open' : ''}`}>
       {/* ── Top Header Row ── */}
       <div className="clean-card-header">
         <div className="clean-card-left">
@@ -1348,18 +1639,22 @@ function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, 
             {hasAuth ? 'Active' : 'Pending'}
           </span>
 
-          <button
-            type="button"
-            className="clean-more-dot-btn"
-            onClick={() => setMenuOpen(prev => !prev)}
-            title="More options"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="5" r="1" />
-              <circle cx="12" cy="12" r="1" />
-              <circle cx="12" cy="19" r="1" />
-            </svg>
-          </button>
+          <div className="clean-menu-anchor" ref={topMenuRef}>
+            <button
+              type="button"
+              className="clean-more-dot-btn"
+              onClick={() => setMenuOpen(prev => (prev === 'top' ? null : 'top'))}
+              title="More options"
+              aria-expanded={menuOpen === 'top'}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="5" r="1" />
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="12" cy="19" r="1" />
+              </svg>
+            </button>
+            {menuOpen === 'top' && renderDropdown('top')}
+          </div>
         </div>
       </div>
 
@@ -1404,7 +1699,7 @@ function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, 
       </div>
 
       {/* ── Bottom Action Buttons Bar ── */}
-      <div className="clean-card-actions-bar" ref={menuRef}>
+      <div className="clean-card-actions-bar">
         <button
           type="button"
           className="clean-btn-view-client"
@@ -1425,7 +1720,7 @@ function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, 
           title="Create Project"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 8 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+            <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 8 3H4a2 2 0 0 0-2 2v13a2 2 0 0 2 2Z" />
           </svg>
           Project
         </button>
@@ -1457,123 +1752,24 @@ function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, 
           {isSendingReminder ? 'Sending…' : 'Reminder'}
         </button>
 
-        <button
-          type="button"
-          className="clean-btn-card-more"
-          onClick={() => setMenuOpen(prev => !prev)}
-          title="More client actions"
-        >
-          <span>••• More</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </button>
-
-        {/* ── Dropdown Menu (Client Settings) ── */}
-        {menuOpen && (
-          <div className="clean-card-dropdown">
-            <div className="clean-dropdown-header">Client Settings</div>
-
-            <button
-              type="button"
-              className="clean-dropdown-item"
-              onClick={() => {
-                setMenuOpen(false);
-                if (hasAuth) { onShowCred(); }
-                else { onSetupAuth(); }
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="7.5" cy="15.5" r="5.5" />
-                <path d="m21 2-9.6 9.6" />
-                <path d="m15.5 7.5 3 3L22 7l-3-3" />
-              </svg>
-              {hasAuth ? 'Credentials' : 'Setup Credentials'}
-            </button>
-
-            <button
-              type="button"
-              className="clean-dropdown-item"
-              onClick={() => {
-                setMenuOpen(false);
-                onReset();
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                <path d="M3 3v5h5" />
-              </svg>
-              Reset Password
-            </button>
-
-            <button
-              type="button"
-              className="clean-dropdown-item"
-              onClick={() => {
-                setMenuOpen(false);
-                onUpdateEmail();
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect width="20" height="16" x="2" y="4" rx="2" />
-                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-              </svg>
-              Notifications
-            </button>
-
-            {client.driveFolderUrl ? (
-              <a
-                href={client.driveFolderUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="clean-dropdown-item"
-                onClick={() => setMenuOpen(false)}
-                style={{ textDecoration: 'none' }}
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                </svg>
-                Open Drive Folder
-              </a>
-            ) : (
-              <button
-                type="button"
-                className="clean-dropdown-item"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onCreateDriveFolder(id, client.name, client.notificationEmail);
-                }}
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                  <line x1="12" y1="11" x2="12" y2="17" />
-                  <line x1="9" y1="14" x2="15" y2="14" />
-                </svg>
-                Create Drive Folder
-              </button>
-            )}
-
-            <div className="clean-dropdown-divider" />
-
-            <button
-              type="button"
-              className="clean-dropdown-item item-danger"
-              onClick={() => {
-                setMenuOpen(false);
-                onDelete();
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6h18" />
-                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-              </svg>
-              Delete Client
-            </button>
-          </div>
-        )}
+        <div className="clean-menu-anchor" ref={bottomMenuRef}>
+          <button
+            type="button"
+            className="clean-btn-card-more"
+            onClick={() => setMenuOpen(prev => (prev === 'bottom' ? null : 'bottom'))}
+            title="More client actions"
+            aria-expanded={menuOpen === 'bottom'}
+          >
+            <span>••• More</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          {menuOpen === 'bottom' && renderDropdown('bottom')}
+        </div>
       </div>
     </div>
   );
 }
+
 

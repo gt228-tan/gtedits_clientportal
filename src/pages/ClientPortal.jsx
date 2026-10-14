@@ -213,27 +213,58 @@ export default function ClientPortal() {
 
       {/* ── Sidebar ── */}
       <aside className="admin-sidebar">
-        <div className="sidebar-logo">
-          <span>⚡</span> EditDesk
+        <div className="sidebar-brand">
+          <div className="sidebar-brand-inner">
+            <span className="sidebar-brand-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+            </span>
+            <div className="sidebar-brand-text">
+              <span className="sidebar-brand-title">EditDesk</span>
+              <span className="sidebar-brand-badge" style={{ background: 'var(--blue-bg)', color: 'var(--blue)', borderColor: 'rgba(37, 99, 235, 0.2)' }}>CLIENT</span>
+            </div>
+          </div>
         </div>
+
         <nav className="sidebar-nav">
-          <div className="sidebar-section-label">NAVIGATION</div>
+          <span className="sidebar-section-label">Navigation</span>
+
           <button
+            type="button"
             className={`sidebar-item${activeTab === 'payments' ? ' active' : ''}`}
             onClick={() => { setActiveTab('payments'); setSelectedProject(null); }}
           >
-            <span>📋</span> Dashboard
+            <span className="sidebar-item-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                <rect x="3" y="14" width="7" height="7" rx="1.5" />
+              </svg>
+            </span>
+            <span className="sidebar-item-label">Dashboard</span>
           </button>
+
           <button
+            type="button"
             className={`sidebar-item${activeTab === 'projects' ? ' active' : ''}`}
             onClick={() => { setActiveTab('projects'); setSelectedProject(null); }}
           >
-            <span>📁</span> My Projects
+            <span className="sidebar-item-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 8 3H4a2 2 0 0 0-2 2v13a2 2 0 0 2 2Z" />
+              </svg>
+            </span>
+            <span className="sidebar-item-label">My Projects</span>
             {pendingApprovalCount > 0 && (
-              <span className="wr-sidebar-badge">{pendingApprovalCount}</span>
+              <span className="wr-sidebar-badge badge-pending">{pendingApprovalCount}</span>
             )}
           </button>
-          <button className="sidebar-item"
+
+          <button
+            type="button"
+            className="sidebar-item"
             onClick={() => {
               setActiveTab('payments');
               setSelectedProject(null);
@@ -242,9 +273,21 @@ export default function ClientPortal() {
               }, 50);
             }}
           >
-            <span>📨</span> My Requests
+            <span className="sidebar-item-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="20" height="16" x="2" y="4" rx="2" />
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
+            </span>
+            <span className="sidebar-item-label">My Requests</span>
+            {myRequests.length > 0 && (
+              <span className="wr-sidebar-badge badge-neutral" style={{ marginLeft: 'auto' }}>{myRequests.length}</span>
+            )}
           </button>
-          <button className="sidebar-item"
+
+          <button
+            type="button"
+            className="sidebar-item"
             onClick={() => {
               setActiveTab('payments');
               setSelectedProject(null);
@@ -253,8 +296,25 @@ export default function ClientPortal() {
               }, 50);
             }}
           >
-            <span>📱</span> QR Pay
+            <span className="sidebar-item-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="5" height="5" x="3" y="3" rx="1" />
+                <rect width="5" height="5" x="16" y="3" rx="1" />
+                <rect width="5" height="5" x="3" y="16" rx="1" />
+                <path d="M21 16h-3a2 2 0 0 0-2 2v3" />
+                <path d="M21 21v.01" />
+                <path d="M12 7v3a2 2 0 0 1-2 2H7" />
+                <path d="M3 12h.01" />
+                <path d="M12 3h.01" />
+                <path d="M12 16v.01" />
+                <path d="M16 12h1" />
+                <path d="M21 12v.01" />
+                <path d="M12 21v-1" />
+              </svg>
+            </span>
+            <span className="sidebar-item-label">QR Pay</span>
           </button>
+
           {client?.driveFolderUrl && (
             <a
               href={client.driveFolderUrl}
@@ -263,13 +323,26 @@ export default function ClientPortal() {
               className="sidebar-item"
               style={{ textDecoration: 'none' }}
             >
-              <span>📂</span> Google Drive
+              <span className="sidebar-item-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+              </span>
+              <span className="sidebar-item-label">Google Drive</span>
             </a>
           )}
         </nav>
 
         <div className="sidebar-footer">
           <ThemeToggle />
+          <button className="sidebar-logout-btn" onClick={logout} title="Sign Out">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span>Sign Out</span>
+          </button>
         </div>
       </aside>
 
@@ -279,28 +352,29 @@ export default function ClientPortal() {
         {/* Top bar */}
         <div className="admin-topbar">
           <div className="admin-topbar-inner">
-            <div>
-              <h1>
+            <div className="admin-topbar-title-group">
+              <h1 className="admin-topbar-title">
                 {activeTab === 'projects' && selectedProject
                   ? selectedProject.title
                   : activeTab === 'projects'
                     ? 'My Projects'
                     : 'My Payments'}
               </h1>
-              <p>Hello, {name} 👋 {activeTab === 'payments' ? "Here's your work summary." : 'Your projects.'}</p>
+              <p className="admin-topbar-sub">Hello, {name} 👋 {activeTab === 'payments' ? "Here's your work summary." : 'Your projects.'}</p>
             </div>
-            <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+
+            <div className="admin-topbar-actions">
               {activeTab === 'projects' && selectedProject && (
                 <button className="btn-secondary" onClick={() => setSelectedProject(null)}>
-                  ← Projects
+                  ← All Projects
                 </button>
               )}
               {activeTab === 'payments' && (
                 <>
-                  <button className="btn-invoice" onClick={() => setShowChangePass(true)}>
+                  <button className="btn-invoice" onClick={() => setShowChangePass(true)} title="Change account password">
                     🔑 Change Password
                   </button>
-                  <button className="btn-invoice" onClick={handleDownloadInvoice} disabled={pdfBusy}>
+                  <button className="btn-invoice" onClick={handleDownloadInvoice} disabled={pdfBusy} title="Download official PDF invoice">
                     {pdfBusy ? '⏳ Generating…' : '⬇ Invoice'}
                   </button>
                   {client?.driveFolderUrl && (
@@ -311,15 +385,21 @@ export default function ClientPortal() {
                       className="btn-invoice"
                       title="Open your Google Drive assets folder"
                     >
-                      📂 Drive Folder
+                      📂 Drive Folder ↗
                     </a>
                   )}
-                  <button className="btn-new-request" onClick={() => setShowRequestForm(true)}>
-                    ✏️ New Request
+                  <button className="btn-create-pill" onClick={() => setShowRequestForm(true)} title="Submit a new work request">
+                    <span className="btn-create-icon">＋</span> New Request
                   </button>
                 </>
               )}
-              <button className="btn-logout-topbar" onClick={logout}>
+
+              {/* User Avatar */}
+              <div className="topbar-user-avatar" title={`Client: ${name || 'User'}`}>
+                <span>{(name || 'C').charAt(0).toUpperCase()}</span>
+              </div>
+
+              <button className="btn-logout-topbar" onClick={logout} title="Sign Out">
                 🔒 Sign Out
               </button>
             </div>
@@ -329,42 +409,120 @@ export default function ClientPortal() {
         {/* ── Payments tab ── */}
         {activeTab === 'payments' && (
           <>
-            <section className="summary-row" style={{ padding: '1.25rem 2rem 0' }}>
-              <div className="sum-card sum-total">
-                <div className="sum-icon">📦</div>
-                <div>
-                  <p className="sum-label">Total Work Value</p>
-                  <p className="sum-value">₹{totals.total.toLocaleString('en-IN')}</p>
+            <div className="bento-overview-card">
+              <div className="bento-overview-header">
+                <div className="bento-overview-title-group">
+                  <h2 className="bento-overview-title">Financial Overview</h2>
+                  <span className="bento-live-badge">
+                    <span className="live-dot" /> Live Updates
+                  </span>
+                </div>
+                <div className="bento-timeframe-pill">
+                  <span>Work & Payment Summary</span>
                 </div>
               </div>
-              <div className="sum-card sum-paid">
-                <div className="sum-icon">✅</div>
-                <div>
-                  <p className="sum-label">Amount Paid</p>
-                  <p className="sum-value">₹{totals.paid.toLocaleString('en-IN')}</p>
+
+              <div className="bento-stats-grid">
+                {/* Total Work Value Card */}
+                <div className="bento-stat-card stat-card-clients">
+                  <div className="bento-stat-top">
+                    <div className="bento-stat-icon-wrap icon-clients">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+                        <path d="m3.3 7 8.7 5 8.7-5" />
+                        <path d="M12 22V12" />
+                      </svg>
+                    </div>
+                    <span className="bento-stat-label">Total Work Value</span>
+                  </div>
+                  <div className="bento-stat-bottom">
+                    <span className="bento-stat-val">₹{totals.total.toLocaleString('en-IN')}</span>
+                    <span className="bento-trend-pill trend-neutral">
+                      {work.length} {work.length === 1 ? 'Item' : 'Items'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Amount Paid Card */}
+                <div className="bento-stat-card stat-card-earned">
+                  <div className="bento-stat-top">
+                    <div className="bento-stat-icon-wrap">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="m9 12 2 2 4-4" />
+                      </svg>
+                    </div>
+                    <span className="bento-stat-label">Amount Paid</span>
+                  </div>
+                  <div className="bento-stat-bottom">
+                    <span className="bento-stat-val">₹{totals.paid.toLocaleString('en-IN')}</span>
+                    <span className="bento-trend-pill trend-up">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="m18 15-6-6-6 6" />
+                      </svg>
+                      Paid
+                    </span>
+                  </div>
+                </div>
+
+                {/* Amount Due Card */}
+                <div className="bento-stat-card stat-card-pending">
+                  <div className="bento-stat-top">
+                    <div className="bento-stat-icon-wrap icon-pending">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                    </div>
+                    <span className="bento-stat-label">Amount Due</span>
+                  </div>
+                  <div className="bento-stat-bottom">
+                    <span className={`bento-stat-val ${totals.pending > 0 ? 'val-pending' : ''}`}>
+                      ₹{totals.pending.toLocaleString('en-IN')}
+                    </span>
+                    <span className={`bento-trend-pill ${totals.pending > 0 ? 'trend-warning' : 'trend-up'}`}>
+                      {totals.pending > 0 ? 'Payment Due' : 'All Settled'}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <div className="sum-card sum-pending">
-                <div className="sum-icon">⏳</div>
-                <div>
-                  <p className="sum-label">Amount Due</p>
-                  <p className="sum-value">₹{totals.pending.toLocaleString('en-IN')}</p>
-                </div>
-              </div>
-            </section>
+            </div>
 
             <section className="admin-section">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-                <h2 className="section-title" style={{ marginBottom: 0 }}>📋 Work Items</h2>
-                <div className="wr-tabs" style={{ margin: 0 }}>
-                  <button className={`wr-tab ${workTab === 'Remaining' ? 'active' : ''}`} onClick={() => setWorkTab('Remaining')}>
-                    ⏳ Remaining ({remainingWork.length})
+              <div className="admin-clients-header">
+                <div className="admin-clients-title-group">
+                  <h2 className="section-title" style={{ margin: 0 }}>📋 Work Items</h2>
+                  <span className="client-count-pill">
+                    {displayWork.length} {displayWork.length === 1 ? 'item' : 'items'}
+                  </span>
+                </div>
+
+                <div className="client-filter-group" role="tablist">
+                  <button
+                    type="button"
+                    className={`filter-pill-btn pill-btn-due ${workTab === 'Remaining' ? 'active' : ''}`}
+                    onClick={() => setWorkTab('Remaining')}
+                  >
+                    <span>⏳ Remaining</span>
+                    <span className={`pill-count ${remainingWork.length > 0 ? 'count-warning' : ''}`}>{remainingWork.length}</span>
                   </button>
-                  <button className={`wr-tab ${workTab === 'Paid' ? 'active' : ''}`} onClick={() => setWorkTab('Paid')}>
-                    ✅ Paid ({paidWork.length})
+
+                  <button
+                    type="button"
+                    className={`filter-pill-btn ${workTab === 'Paid' ? 'active' : ''}`}
+                    onClick={() => setWorkTab('Paid')}
+                  >
+                    <span>✅ Paid</span>
+                    <span className="pill-count">{paidWork.length}</span>
                   </button>
-                  <button className={`wr-tab ${workTab === 'All' ? 'active' : ''}`} onClick={() => setWorkTab('All')}>
-                    📋 All ({work.length})
+
+                  <button
+                    type="button"
+                    className={`filter-pill-btn ${workTab === 'All' ? 'active' : ''}`}
+                    onClick={() => setWorkTab('All')}
+                  >
+                    <span>📋 All</span>
+                    <span className="pill-count">{work.length}</span>
                   </button>
                 </div>
               </div>
@@ -437,12 +595,16 @@ export default function ClientPortal() {
             </section>
 
             <section className="admin-section" id="requests-section">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.75rem' }}>
-                <h2 className="section-title" style={{ marginBottom: 0 }}>📨 My Work Requests</h2>
-                <button className="btn-new-request" onClick={() => setShowRequestForm(true)}>
-                  ✏️ New Request
+              <div className="admin-clients-header">
+                <div className="admin-clients-title-group">
+                  <h2 className="section-title" style={{ margin: 0 }}>📨 My Work Requests</h2>
+                  <span className="client-count-pill">{myRequests.length}</span>
+                </div>
+                <button className="btn-create-pill" onClick={() => setShowRequestForm(true)}>
+                  <span className="btn-create-icon">＋</span> New Request
                 </button>
               </div>
+
               {myRequests.length === 0 ? (
                 <div className="work-empty">
                   <div className="empty-icon">📭</div>
@@ -484,10 +646,22 @@ export default function ClientPortal() {
             </section>
 
             <section className="admin-section" id="qr-section">
-              <h2 className="section-title">📱 Pay via QR Code</h2>
-              <div className="qr-card" style={{ margin: 0 }}>
-                <p className="qr-sub">Scan with any UPI app to make your payment.</p>
-                <img src="/receive_money_image.png" alt="Payment QR Code" className="qr-image" />
+              <div className="admin-clients-title-group" style={{ marginBottom: '14px' }}>
+                <h2 className="section-title" style={{ margin: 0 }}>📱 Pay via QR Code</h2>
+                <span className="client-count-pill" style={{ background: 'var(--green-bg)', color: 'var(--green)', borderColor: 'rgba(26, 158, 88, 0.2)' }}>Instant UPI</span>
+              </div>
+              <div className="clean-client-card" style={{ maxWidth: '440px', padding: '24px', alignItems: 'center', textAlign: 'center' }}>
+                <p style={{ margin: '0 0 16px', color: 'var(--text-muted)', fontSize: '0.88rem', fontWeight: 500 }}>
+                  Scan with any UPI app (Google Pay, PhonePe, Paytm) to complete payment directly.
+                </p>
+                <div style={{ background: '#ffffff', padding: '14px', borderRadius: '16px', border: '1px solid var(--border)', display: 'inline-block', boxShadow: 'var(--shadow-sm)' }}>
+                  <img src="/receive_money_image.png" alt="Payment QR Code" style={{ maxWidth: '240px', width: '100%', height: 'auto', display: 'block', borderRadius: '8px' }} />
+                </div>
+                {totals.pending > 0 && (
+                  <div style={{ marginTop: '16px', padding: '8px 18px', borderRadius: '9999px', background: 'var(--peach-bg)', color: 'var(--peach)', fontWeight: 700, fontSize: '0.85rem' }}>
+                    Outstanding Due: ₹{totals.pending.toLocaleString('en-IN')}
+                  </div>
+                )}
               </div>
             </section>
           </>
@@ -496,6 +670,13 @@ export default function ClientPortal() {
         {/* ── Projects tab: list view ── */}
         {activeTab === 'projects' && !selectedProject && (
           <section className="admin-section">
+            <div className="admin-clients-header">
+              <div className="admin-clients-title-group">
+                <h2 className="section-title" style={{ margin: 0 }}>📁 My Projects</h2>
+                <span className="client-count-pill">{projects.length} {projects.length === 1 ? 'project' : 'projects'}</span>
+              </div>
+            </div>
+
             {projectsLoading && (
               <div className="admin-empty"><div className="spinner" /><p>Loading projects…</p></div>
             )}
@@ -528,7 +709,7 @@ export default function ClientPortal() {
                         </span>
                       </div>
                       {p.description && <p className="proj-card-desc">{p.description}</p>}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
                         <p className="proj-card-date" style={{ margin: 0 }}>
                           Created {formatDateLong(p.createdAt)}
                         </p>
@@ -537,7 +718,7 @@ export default function ClientPortal() {
                             href={p.driveFolderUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            style={{ padding: '4px 10px', fontSize: '0.8rem', textDecoration: 'none', background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', borderRadius: '6px', fontWeight: 600 }}
+                            style={{ padding: '6px 14px', fontSize: '0.8rem', textDecoration: 'none', background: 'var(--green-bg)', color: 'var(--green)', border: '1px solid rgba(26, 158, 88, 0.25)', borderRadius: '9999px', fontWeight: 700 }}
                             onClick={e => e.stopPropagation()}
                           >
                             📁 Drive Folder ↗

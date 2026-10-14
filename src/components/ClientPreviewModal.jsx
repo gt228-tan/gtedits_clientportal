@@ -59,52 +59,82 @@ export default function ClientPreviewModal({ clientName, work, driveFolderUrl, o
         </div>
 
         {/* Summary cards */}
-        <div className="summary-row" style={{ padding: '.85rem 0', gap: '.75rem' }}>
-          <div className="sum-card sum-total" style={{ flex: 1 }}>
-            <div className="sum-icon">📦</div>
-            <div>
-              <p className="sum-label">Total Value</p>
-              <p className="sum-value">Rs. {totals.total.toLocaleString('en-US')}</p>
+        <div className="bento-stats-grid" style={{ margin: '14px 0 18px', gap: '12px' }}>
+          <div className="bento-stat-card stat-card-clients" style={{ padding: '14px 16px', gap: '8px' }}>
+            <div className="bento-stat-top">
+              <div className="bento-stat-icon-wrap icon-clients" style={{ width: '28px', height: '28px' }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+                  <path d="m3.3 7 8.7 5 8.7-5" />
+                  <path d="M12 22V12" />
+                </svg>
+              </div>
+              <span className="bento-stat-label" style={{ fontSize: '0.75rem' }}>Total Value</span>
+            </div>
+            <div className="bento-stat-bottom">
+              <span className="bento-stat-val" style={{ fontSize: '1.45rem' }}>₹{totals.total.toLocaleString('en-IN')}</span>
+              <span className="bento-trend-pill trend-neutral">{workArr.length} items</span>
             </div>
           </div>
-          <div className="sum-card sum-paid" style={{ flex: 1 }}>
-            <div className="sum-icon">✅</div>
-            <div>
-              <p className="sum-label">Paid</p>
-              <p className="sum-value">Rs. {totals.paid.toLocaleString('en-US')}</p>
+
+          <div className="bento-stat-card stat-card-earned" style={{ padding: '14px 16px', gap: '8px' }}>
+            <div className="bento-stat-top">
+              <div className="bento-stat-icon-wrap" style={{ width: '28px', height: '28px' }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="m9 12 2 2 4-4" />
+                </svg>
+              </div>
+              <span className="bento-stat-label" style={{ fontSize: '0.75rem' }}>Paid</span>
+            </div>
+            <div className="bento-stat-bottom">
+              <span className="bento-stat-val" style={{ fontSize: '1.45rem' }}>₹{totals.paid.toLocaleString('en-IN')}</span>
+              <span className="bento-trend-pill trend-up">Paid</span>
             </div>
           </div>
-          <div className="sum-card sum-pending" style={{ flex: 1 }}>
-            <div className="sum-icon">⏳</div>
-            <div>
-              <p className="sum-label">Due</p>
-              <p className="sum-value">Rs. {totals.pending.toLocaleString('en-US')}</p>
+
+          <div className="bento-stat-card stat-card-pending" style={{ padding: '14px 16px', gap: '8px' }}>
+            <div className="bento-stat-top">
+              <div className="bento-stat-icon-wrap icon-pending" style={{ width: '28px', height: '28px' }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+              </div>
+              <span className="bento-stat-label" style={{ fontSize: '0.75rem' }}>Due</span>
+            </div>
+            <div className="bento-stat-bottom">
+              <span className={`bento-stat-val ${totals.pending > 0 ? 'val-pending' : ''}`} style={{ fontSize: '1.45rem' }}>₹{totals.pending.toLocaleString('en-IN')}</span>
+              <span className={`bento-trend-pill ${totals.pending > 0 ? 'trend-warning' : 'trend-up'}`}>{totals.pending > 0 ? 'Due' : 'Clear'}</span>
             </div>
           </div>
         </div>
 
         {/* Category Filter Tabs */}
-        <div className="wr-tabs" style={{ margin: '12px 0 10px' }}>
+        <div className="client-filter-group" role="tablist" style={{ margin: '14px 0 12px' }}>
           <button
             type="button"
-            className={`wr-tab ${workTab === 'Remaining' ? 'active' : ''}`}
+            className={`filter-pill-btn pill-btn-due ${workTab === 'Remaining' ? 'active' : ''}`}
             onClick={() => setWorkTab('Remaining')}
           >
-            ⏳ Remaining Payment ({remainingWork.length})
+            <span>⏳ Remaining</span>
+            <span className={`pill-count ${remainingWork.length > 0 ? 'count-warning' : ''}`}>{remainingWork.length}</span>
           </button>
           <button
             type="button"
-            className={`wr-tab ${workTab === 'Paid' ? 'active' : ''}`}
+            className={`filter-pill-btn ${workTab === 'Paid' ? 'active' : ''}`}
             onClick={() => setWorkTab('Paid')}
           >
-            ✅ Paid ({paidWork.length})
+            <span>✅ Paid</span>
+            <span className="pill-count">{paidWork.length}</span>
           </button>
           <button
             type="button"
-            className={`wr-tab ${workTab === 'All' ? 'active' : ''}`}
+            className={`filter-pill-btn ${workTab === 'All' ? 'active' : ''}`}
             onClick={() => setWorkTab('All')}
           >
-            📋 All Items ({workArr.length})
+            <span>📋 All Items</span>
+            <span className="pill-count">{workArr.length}</span>
           </button>
         </div>
 
