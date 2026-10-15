@@ -53,8 +53,7 @@ export default function ProjectDeliverablesSection({ project, token, isAdmin = f
               href={project.driveFolderUrl || client?.driveFolderUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn-secondary"
-              style={{ padding: '4px 10px', fontSize: '0.82rem', textDecoration: 'none', background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', borderRadius: '6px' }}
+              className="btn-drive-folder"
               title="Open Client's Google Drive Folder"
             >
               📁 Drive Folder ↗
@@ -82,7 +81,7 @@ export default function ProjectDeliverablesSection({ project, token, isAdmin = f
           <div className="empty-icon">📭</div>
           <p>No deliverables yet.</p>
           {isAdmin && (
-            <button className="btn-add-dlv" onClick={() => setShowUpload(true)}>
+            <button className="btn-add-dlv btn-add-dlv--hero" onClick={() => setShowUpload(true)}>
               ＋ Add First Deliverable
             </button>
           )}

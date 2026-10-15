@@ -70,28 +70,6 @@ async function createProjectForApprovedRequest(workRequest, options = {}) {
         workRequestId: workRequest._id,
       });
 
-      // If AI generated multiple deliverables, seed initial draft deliverable placeholders
-      if (workRequest.aiGenerated && Array.isArray(workRequest.deliverablesList) && workRequest.deliverablesList.length > 0) {
-        const Deliverable = require('../models/Deliverable');
-        for (const item of workRequest.deliverablesList) {
-          try {
-            await Deliverable.create({
-              projectId: project._id,
-              clientFirebaseUid: clientFirebaseUid,
-              uploadedBy: 'admin',
-              type: 'link',
-              name: item.name || 'Deliverable',
-              description: item.notes || `Deliverable for ${projectTitle}`,
-              url: workRequest.materials || 'https://drive.google.com',
-              version: 1,
-              status: 'draft',
-            });
-          } catch (delivErr) {
-            console.warn(`Could not seed draft deliverable "${item.name}":`, delivErr.message);
-          }
-        }
-      }
-
       isNewProject = true;
       console.log(`🎉 Auto-created project "${project.title}" (ID: ${project._id}) for client "${project.clientName}"`);
     }

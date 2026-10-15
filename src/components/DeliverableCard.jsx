@@ -3,17 +3,17 @@ import { showToast } from './Toast';
 import { deleteDeliverable, toggleDeliverableDownload, sendPaymentReminder } from '../api/deliverables';
 
 const STATUS_CONFIG = {
-  awaiting_approval:  { label: 'Awaiting Client Approval', color: 'amber',  icon: '🟡' },
-  approved:           { label: 'Approved',                  color: 'green',  icon: '✅' },
-  revision_requested: { label: 'Revision Requested',        color: 'red',    icon: '🔴' },
-  superseded:         { label: 'Superseded',                color: 'muted',  icon: '⚫' },
-  draft:              { label: 'Draft',                     color: 'muted',  icon: '⚪' },
+  awaiting_approval: { label: 'Awaiting Client Approval', color: 'amber', icon: '🟡' },
+  approved: { label: 'Approved', color: 'green', icon: '✅' },
+  revision_requested: { label: 'Revision Requested', color: 'red', icon: '🔴' },
+  superseded: { label: 'Superseded', color: 'muted', icon: '⚫' },
+  draft: { label: 'Draft', color: 'muted', icon: '⚪' },
 };
 
 function formatBytes(b) {
   if (!b) return '';
-  if (b < 1024)          return `${b} B`;
-  if (b < 1024 * 1024)   return `${(b / 1024).toFixed(1)} KB`;
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
   return `${(b / 1024 / 1024).toFixed(2)} MB`;
 }
 
@@ -33,7 +33,7 @@ export default function DeliverableCard({
   const [deleting, setDeleting] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [sendingReminder, setSendingReminder] = useState(false);
-  const [allowed, setAllowed]   = useState(deliverable.allowDownload !== false);
+  const [allowed, setAllowed] = useState(deliverable.allowDownload !== false);
   const cfg = STATUS_CONFIG[deliverable.status] || STATUS_CONFIG.draft;
 
   const handleDelete = async () => {

@@ -47,6 +47,7 @@ export default function AdminDashboard() {
   const [addBusy, setAddBusy] = useState(false);
   const [syncDriveBusy, setSyncDriveBusy] = useState(false);
   const [sendingReminderId, setSendingReminderId] = useState(null);
+  const [markingPaidId, setMarkingPaidId] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');  // 'dashboard' | 'requests' | 'projects'
 
   const [pendingCount, setPendingCount] = useState(0);
@@ -466,6 +467,38 @@ export default function AdminDashboard() {
       showToast(`❌ ${err.message}`, 'warn');
     } finally {
       setSendingReminderId(null);
+    }
+  };
+
+  const handleMarkAllPaid = async (clientId, clientName, clientObj) => {
+    const client = clientObj || clients[clientId] || {};
+    const workEntries = Object.entries(client.work || {});
+    const remainingEntries = workEntries.filter(([_, w]) => w && (w.status || 'Pending') !== 'Paid');
+
+    if (workEntries.length === 0) {
+      showToast('⚠️ No work items found for this client', 'warn');
+      return;
+    }
+
+    if (remainingEntries.length === 0) {
+      showToast('ℹ️ All payments are already marked as Paid!');
+      return;
+    }
+
+    setMarkingPaidId(clientId);
+    try {
+      const updates = {};
+      remainingEntries.forEach(([wid]) => {
+        updates[`${wid}/status`] = 'Paid';
+        updates[`${wid}/advance`] = 0;
+      });
+      await update(ref(db, `clients/${clientId}/work`), updates);
+      showToast(`✅ Remaining payment for ${clientName} marked as Paid!`);
+    } catch (err) {
+      console.error('Error marking paid:', err);
+      showToast(`❌ Failed to update payment: ${err.message}`, 'warn');
+    } finally {
+      setMarkingPaidId(null);
     }
   };
 
@@ -1090,6 +1123,8 @@ export default function AdminDashboard() {
                       onDelete={() => handleDeleteClient(id)}
                       onSendReminder={() => handleSendPaymentReminder(id, c.name, c)}
                       isSendingReminder={sendingReminderId === id}
+                      onMarkPaid={() => handleMarkAllPaid(id, c.name, c)}
+                      isMarkingPaid={markingPaidId === id}
                       onCreateProject={() => {
 
                         setCreateForClient({
@@ -1431,15 +1466,14 @@ function ProjectDetailView({ project, getToken, onDelete, onStatusChange, onProj
           <p className="proj-card-client">{project.clientName}</p>
           <h2 className="proj-detail-title">{project.title}</h2>
           {project.description && <p className="proj-card-desc">{project.description}</p>}
-          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Project Amount:</span>
-            <span style={{ fontSize: '1rem', fontWeight: 800, color: '#16a34a' }}>
+          <div className="proj-detail-amount-row">
+            <span className="proj-detail-amount-label">Project Amount:</span>
+            <span className="proj-detail-amount-val">
               ₹{(Number(project.amount || project.budget || 0)).toLocaleString('en-IN')}
             </span>
             <button
               type="button"
-              className="dlv-btn dlv-btn--outline"
-              style={{ padding: '2px 8px', fontSize: '12px' }}
+              className="dlv-btn dlv-btn--outline proj-btn-edit-price"
               onClick={handleEditProjectAmount}
             >
               ✏️ Edit Price
@@ -1448,17 +1482,19 @@ function ProjectDetailView({ project, getToken, onDelete, onStatusChange, onProj
         </div>
         <div className="proj-detail-meta-right">
           <span className={`dlv-status-badge dlv-status--${sc.color}`}>{sc.label}</span>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
-            <select
-              className="dlv-status-select"
-              defaultValue=""
-              onChange={e => { if (e.target.value) onStatusChange(project._id, e.target.value); e.target.value = ''; }}
-            >
-              <option value="" disabled>Change status…</option>
-              {NEXT_STATUSES.map(s => (
-                <option key={s} value={s}>{statusLabels[s]?.label || s}</option>
-              ))}
-            </select>
+          <div className="proj-detail-actions-row">
+            <div className="dlv-status-select-wrap">
+              <select
+                className="dlv-status-select"
+                defaultValue=""
+                onChange={e => { if (e.target.value) onStatusChange(project._id, e.target.value); e.target.value = ''; }}
+              >
+                <option value="" disabled>Change status…</option>
+                {NEXT_STATUSES.map(s => (
+                  <option key={s} value={s}>{statusLabels[s]?.label || s}</option>
+                ))}
+              </select>
+            </div>
             <button className="dlv-btn dlv-btn--danger" onClick={() => onDelete(project._id)}>
               🗑️ Delete Project
             </button>
@@ -1551,7 +1587,7 @@ function ProjectDetailView({ project, getToken, onDelete, onStatusChange, onProj
 }
 
 // ── Client Card ────────────────────────────────────────────
-function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, onUpdateEmail, onCreateDriveFolder, onPreview, onDelete, onCreateProject, onSendReminder, isSendingReminder }) {
+function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, onUpdateEmail, onCreateDriveFolder, onPreview, onDelete, onCreateProject, onSendReminder, isSendingReminder, onMarkPaid, isMarkingPaid }) {
   const [menuOpen, setMenuOpen] = useState(null); // 'top' | 'bottom' | null
   const [copied, setCopied] = useState(false);
   const topMenuRef = useRef(null);
@@ -1905,6 +1941,20 @@ function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, 
             <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
           </svg>
           {isSendingReminder ? 'Sending…' : 'Reminder'}
+        </button>
+
+        <button
+          type="button"
+          className="clean-btn-card-paid"
+          onClick={onMarkPaid}
+          disabled={isMarkingPaid}
+          title={pendingAmt > 0 ? `Mark remaining ₹${pendingAmt.toLocaleString('en-IN')} as Paid (1 click)` : 'All payments settled'}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="16 9 10 15 7 12" />
+          </svg>
+          {isMarkingPaid ? 'Updating…' : 'Paid'}
         </button>
 
         <div className="clean-menu-anchor" ref={bottomMenuRef}>
