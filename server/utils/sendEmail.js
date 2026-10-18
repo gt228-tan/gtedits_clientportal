@@ -1,21 +1,6 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
-const nodemailer = require('nodemailer');
-
-const emailPass = (process.env.EMAIL_PASS || '').replace(/\s+/g, '');
-
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: Number(process.env.EMAIL_PORT) || 587,
-  secure: Number(process.env.EMAIL_PORT) === 465, // true for 465, false for 587
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: emailPass,
-  },
-  tls: {
-    rejectUnauthorized: false,
-  },
-});
+const { BrevoClient } = require('@getbrevo/brevo');
 
 // Helper to construct a standard HTML email template with valid doctype and anti-spam footer
 const wrapHtml = (contentHtml, footerNote = '') => `<!DOCTYPE html>
@@ -59,11 +44,83 @@ const wrapHtml = (contentHtml, footerNote = '') => `<!DOCTYPE html>
 </body>
 </html>`;
 
+/**
+ * Core sender function for Brevo REST API
+ */
+const sendBrevoEmail = async ({
+  to,
+  toName = '',
+  subject,
+  html,
+  text,
+  replyTo,
+  attachments = [],
+}) => {
+  const apiKey = (process.env.BREVO_API_KEY || '').trim();
+  if (!apiKey || apiKey === 'PASTE_YOUR_BREVO_API_KEY_HERE') {
+    console.warn(`⚠️ [sendEmail/Brevo] Email to ${to} skipped: BREVO_API_KEY is not set or still has default placeholder in server/.env`);
+    return { success: false, reason: 'BREVO_API_KEY not configured in .env' };
+  }
+
+  const senderEmail = (process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER || 'gtportal08@gmail.com').trim();
+  const senderName = process.env.BREVO_SENDER_NAME || 'GT Edits';
+  const replyToEmail = (replyTo || process.env.ADMIN_EMAIL || senderEmail).trim();
+
+  const client = new BrevoClient({ apiKey });
+
+  const payload = {
+    sender: {
+      name: senderName,
+      email: senderEmail,
+    },
+    to: [
+      {
+        email: to.trim(),
+        name: toName ? toName.trim() : to.split('@')[0],
+      },
+    ],
+    replyTo: {
+      name: senderName,
+      email: replyToEmail,
+    },
+    subject,
+    htmlContent: wrapHtml(html),
+  };
+
+  if (text) {
+    payload.textContent = text;
+  }
+
+  // Support attachments (Buffer or base64 string)
+  if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+    payload.attachment = attachments
+      .filter((att) => att && att.filename && att.content)
+      .map((att) => ({
+        name: att.filename,
+        content: Buffer.isBuffer(att.content) ? att.content.toString('base64') : att.content,
+      }));
+  }
+
+  try {
+    const response = await client.transactionalEmails.sendTransacEmail(payload);
+    const messageId = response?.messageId || response?.messageIds?.[0] || 'sent';
+    console.log(`✉️ [Brevo] Email sent successfully to ${to} (MessageId: ${messageId})`);
+    return { success: true, email: to, messageId };
+  } catch (err) {
+    const errMsg = err?.body?.message || err?.message || JSON.stringify(err);
+    console.error(`❌ [Brevo Error] Failed to send email to ${to}:`, errMsg);
+    return { success: false, reason: errMsg };
+  }
+};
+
+/**
+ * Send email notification to Admin when a new Work Request is submitted
+ */
 const sendAdminNotification = async (workRequest) => {
   try {
-    const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER || 'gtbtbhay22@gmail.com';
+    const adminEmail = process.env.ADMIN_EMAIL || process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER || 'gtbtbhay22@gmail.com';
     if (!adminEmail) {
-      console.warn('⚠️ [sendEmail] ADMIN_EMAIL and EMAIL_USER missing. Admin notification NOT sent.');
+      console.warn('⚠️ [sendEmail] ADMIN_EMAIL missing. Admin notification NOT sent.');
       return;
     }
 
@@ -146,17 +203,13 @@ const sendAdminNotification = async (workRequest) => {
       `Approve: ${approveUrl}\n` +
       `Reject: ${rejectUrl}\n`;
 
-    const mailOptions = {
-      from: `"GT Edits" <${process.env.EMAIL_USER}>`,
-      replyTo: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+    return await sendBrevoEmail({
       to: adminEmail,
+      toName: 'GT Edits Admin',
       subject: `[GT Edits] New Work Request from ${workRequest.clientName || 'Client'}: ${workRequest.title || workRequest.type}`,
+      html: htmlBody,
       text: textBody,
-      html: wrapHtml(htmlBody),
-    };
-
-    await transporter.sendMail(mailOptions);
-    console.log(`✉️ Admin notification email sent successfully to ${adminEmail}`);
+    });
   } catch (err) {
     console.error('❌ Failed to send admin email notification:', err.message);
   }
@@ -167,7 +220,9 @@ const sendAdminNotification = async (workRequest) => {
  */
 const sendAdminApprovalNotification = async ({ deliverable, project }) => {
   try {
-    const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+    const adminEmail = process.env.ADMIN_EMAIL || process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER;
+    if (!adminEmail) return;
+
     const htmlBody = `
       <h2 style="color: #16a34a; margin: 0 0 16px 0; font-size: 18px;">Deliverable Approved</h2>
       <p>Client <strong>${project.clientName}</strong> has approved the deliverable <strong>"${deliverable.name}"</strong> (Version ${deliverable.version}).</p>
@@ -185,15 +240,13 @@ const sendAdminApprovalNotification = async ({ deliverable, project }) => {
       `Deliverable: ${deliverable.name} (v${deliverable.version})\n` +
       `Approved Date: ${new Date().toLocaleString('en-IN')}\n`;
 
-    const mailOptions = {
-      from: `"GT Edits" <${process.env.EMAIL_USER}>`,
-      replyTo: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+    return await sendBrevoEmail({
       to: adminEmail,
+      toName: 'GT Edits Admin',
       subject: `[GT Edits] Deliverable Approved: "${project.title}" (v${deliverable.version})`,
+      html: htmlBody,
       text: textBody,
-      html: wrapHtml(htmlBody),
-    };
-    await transporter.sendMail(mailOptions);
+    });
   } catch (err) {
     console.error('Failed to send admin approval email:', err.message);
   }
@@ -204,7 +257,9 @@ const sendAdminApprovalNotification = async ({ deliverable, project }) => {
  */
 const sendAdminRevisionNotification = async ({ deliverable, project, revision }) => {
   try {
-    const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+    const adminEmail = process.env.ADMIN_EMAIL || process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER;
+    if (!adminEmail) return;
+
     const htmlBody = `
       <h2 style="color: #dc2626; margin: 0 0 16px 0; font-size: 18px;">Revision Requested by Client</h2>
       <p>Client <strong>${project.clientName}</strong> has requested revisions for <strong>"${deliverable.name}"</strong> (Version ${deliverable.version}).</p>
@@ -227,15 +282,13 @@ const sendAdminRevisionNotification = async ({ deliverable, project, revision })
       `Deliverable: ${deliverable.name} (v${deliverable.version})\n` +
       `Feedback: ${revision.description}\n`;
 
-    const mailOptions = {
-      from: `"GT Edits" <${process.env.EMAIL_USER}>`,
-      replyTo: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+    return await sendBrevoEmail({
       to: adminEmail,
+      toName: 'GT Edits Admin',
       subject: `[GT Edits] Revision Requested: "${project.title}" (v${deliverable.version})`,
+      html: htmlBody,
       text: textBody,
-      html: wrapHtml(htmlBody),
-    };
-    await transporter.sendMail(mailOptions);
+    });
   } catch (err) {
     console.error('Failed to send admin revision email:', err.message);
   }
@@ -246,7 +299,9 @@ const sendAdminRevisionNotification = async ({ deliverable, project, revision })
  */
 const sendAdminRejectionNotification = async ({ workRequest, reason }) => {
   try {
-    const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+    const adminEmail = process.env.ADMIN_EMAIL || process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER;
+    if (!adminEmail) return;
+
     const htmlBody = `
       <h2 style="color: #dc2626; margin: 0 0 16px 0; font-size: 18px;">Work Request Rejected</h2>
       <p>Work request from <strong>${workRequest.clientName || 'Client'}</strong> has been marked as <strong>Rejected</strong>.</p>
@@ -260,15 +315,13 @@ const sendAdminRejectionNotification = async ({ workRequest, reason }) => {
       `Client: ${workRequest.clientName || 'Client'}\n` +
       `Reason: ${reason || workRequest.adminNote || 'None'}\n`;
 
-    const mailOptions = {
-      from: `"GT Edits" <${process.env.EMAIL_USER}>`,
-      replyTo: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+    return await sendBrevoEmail({
       to: adminEmail,
+      toName: 'GT Edits Admin',
       subject: `[GT Edits] Work Request Rejected: ${workRequest.title || workRequest.clientName}`,
+      html: htmlBody,
       text: textBody,
-      html: wrapHtml(htmlBody),
-    };
-    await transporter.sendMail(mailOptions);
+    });
   } catch (err) {
     console.error('Failed to send admin rejection email:', err.message);
   }
@@ -310,16 +363,13 @@ const sendClientRequestApprovalNotification = async ({ clientEmail, clientName, 
       `Log in to your portal to view status: ${clientPortalUrl}\n\n` +
       `Best regards,\nGT Edits Team`;
 
-    const mailOptions = {
-      from: `"GT Edits" <${process.env.EMAIL_USER}>`,
-      replyTo: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
-      to: clientEmail.trim(),
+    return await sendBrevoEmail({
+      to: clientEmail,
+      toName: clientName,
       subject: `[GT Edits] Work Request Approved: "${workRequest.title || workRequest.type}"`,
+      html: htmlBody,
       text: textBody,
-      html: wrapHtml(htmlBody),
-    };
-    await transporter.sendMail(mailOptions);
-    console.log(`✉️ Approved notification email sent successfully to ${clientEmail}`);
+    });
   } catch (err) {
     console.error('Failed to send client request approval email:', err.message);
   }
@@ -329,11 +379,6 @@ const sendClientRequestApprovalNotification = async ({ clientEmail, clientName, 
  * Send email notification to CLIENT when a DELIVERABLE is uploaded
  */
 const sendClientDeliverableNotification = async ({ clientEmail, clientName, project, deliverable }) => {
-  if (!process.env.EMAIL_USER || !emailPass) {
-    console.error('❌ [sendEmail] EMAIL_USER or EMAIL_PASS not configured in server environment (.env)');
-    return { success: false, reason: 'Email server credentials not configured.' };
-  }
-
   if (!clientEmail || clientEmail.includes('gtportal.com') || !clientEmail.includes('@')) {
     console.warn(`[sendEmail] Skipping deliverable email for "${clientName}": email is empty, invalid, or generated login email (${clientEmail})`);
     return { success: false, reason: `Invalid or missing client email address (${clientEmail || 'empty'}).` };
@@ -389,18 +434,13 @@ const sendClientDeliverableNotification = async ({ clientEmail, clientName, proj
       `${clientPortalUrl}\n\n` +
       `Best regards,\nGT Edits Team`;
 
-    const mailOptions = {
-      from: `"GT Edits" <${process.env.EMAIL_USER}>`,
-      replyTo: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
-      to: clientEmail.trim(),
+    return await sendBrevoEmail({
+      to: clientEmail,
+      toName: clientName,
       subject: `[GT Edits] Deliverable ready for review: "${deliverable.name}" (v${deliverable.version})`,
+      html: htmlBody,
       text: textBody,
-      html: wrapHtml(htmlBody),
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`✉️ Deliverable notification email sent successfully to ${clientEmail} (messageId: ${info.messageId})`);
-    return { success: true, email: clientEmail, messageId: info.messageId };
+    });
   } catch (err) {
     console.error('Failed to send client deliverable email:', err.message);
     return { success: false, reason: err.message };
@@ -452,16 +492,13 @@ const sendClientRequestRejectionNotification = async ({ clientEmail, clientName,
       `You are welcome to submit a revised request in your portal: ${clientPortalUrl}\n\n` +
       `Best regards,\nGT Edits Team`;
 
-    const mailOptions = {
-      from: `"GT Edits" <${process.env.EMAIL_USER}>`,
-      replyTo: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
-      to: clientEmail.trim(),
+    return await sendBrevoEmail({
+      to: clientEmail,
+      toName: clientName,
       subject: `[GT Edits] Update regarding your Work Request: "${workRequest.title || workRequest.type}"`,
+      html: htmlBody,
       text: textBody,
-      html: wrapHtml(htmlBody),
-    };
-    await transporter.sendMail(mailOptions);
-    console.log(`✉️ Rejection notification email sent successfully to ${clientEmail}`);
+    });
   } catch (err) {
     console.error('Failed to send client request rejection email:', err.message);
   }
@@ -477,11 +514,6 @@ const sendClientPaymentReminderNotification = async ({
   grandTotal = 0,
   pdfBuffer,
 }) => {
-  if (!process.env.EMAIL_USER || !emailPass) {
-    console.error('❌ [sendEmail] EMAIL_USER or EMAIL_PASS not configured in server environment (.env)');
-    return { success: false, reason: 'Email server credentials (EMAIL_USER / EMAIL_PASS) are not configured in server .env.' };
-  }
-
   if (!clientEmail || clientEmail.includes('gtportal.com') || !clientEmail.includes('@')) {
     console.warn(`[sendEmail] Skipping payment reminder email for "${clientName}": email is empty, invalid, or generated login email (${clientEmail})`);
     return { success: false, reason: `Invalid or missing client email address (${clientEmail || 'empty'}).` };
@@ -539,28 +571,26 @@ const sendClientPaymentReminderNotification = async ({
       `If you have already settled this balance, please disregard this message.\n\n` +
       `Best regards,\nGT Edits Team`;
 
-    const mailOptions = {
-      from: `"GT Edits" <${process.env.EMAIL_USER}>`,
-      replyTo: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
-      to: clientEmail.trim(),
-      subject: `[GT Edits] Invoice update for your project: ${formattedTotal}`,
-      text: textBody,
-      html: wrapHtml(htmlBody),
-      attachments: (pdfBuffer && Buffer.isBuffer(pdfBuffer) && pdfBuffer.length > 0) ? [
+    const attachments = (pdfBuffer && Buffer.isBuffer(pdfBuffer) && pdfBuffer.length > 0)
+      ? [
         {
           filename,
           content: pdfBuffer,
-          contentType: 'application/pdf',
-        }
-      ] : [],
-    };
+        },
+      ]
+      : [];
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`✉️ Payment reminder email sent successfully to ${clientEmail} (messageId: ${info.messageId})`);
-    return { success: true, email: clientEmail, messageId: info.messageId };
+    return await sendBrevoEmail({
+      to: clientEmail,
+      toName: safeClientName,
+      subject: `[GT Edits] Invoice update for your project: ${formattedTotal}`,
+      html: htmlBody,
+      text: textBody,
+      attachments,
+    });
   } catch (err) {
     console.error('Failed to send payment reminder email:', err.message);
-    return { success: false, reason: `SMTP Mail delivery failed: ${err.message}` };
+    return { success: false, reason: `Brevo Mail delivery failed: ${err.message}` };
   }
 };
 

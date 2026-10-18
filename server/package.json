@@ -12,6 +12,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@getbrevo/brevo": "^6.2.0",
     "@google/genai": "^2.27.0",
     "@google/generative-ai": "^0.24.1",
     "cors": "^2.8.6",
@@ -21,7 +22,6 @@
     "googleapis": "^176.0.0",
     "mongoose": "^9.9.1",
     "multer": "^2.2.0",
-    "nodemailer": "^6.9.13",
     "pdfkit": "^0.19.1"
   }
 }
