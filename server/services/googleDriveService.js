@@ -6,15 +6,31 @@ const fs = require('fs');
  * Checks whether Google Drive API credentials are configured in environment variables or service account file.
  */
 function isDriveConfigured() {
+  // Option A: Raw JSON string in environment variable
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    try {
+      const parsed = typeof process.env.GOOGLE_SERVICE_ACCOUNT_JSON === 'string'
+        ? JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON)
+        : process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+      if (parsed.client_email && parsed.private_key) return true;
+    } catch (_) {}
+  }
+  // Option B: Render Secret File located at /etc/secrets/service-account.json
+  if (fs.existsSync('/etc/secrets/service-account.json')) {
+    return true;
+  }
+  // Option C: Individual environment variables
   if (process.env.GOOGLE_CLIENT_EMAIL && (process.env.GOOGLE_SERVICE_ACCOUNT_KEY || process.env.GOOGLE_PRIVATE_KEY)) {
     return true;
   }
+  // Option D: Custom file path
   if (process.env.GOOGLE_SERVICE_ACCOUNT_FILE) {
     const filePath = path.isAbsolute(process.env.GOOGLE_SERVICE_ACCOUNT_FILE)
       ? process.env.GOOGLE_SERVICE_ACCOUNT_FILE
       : path.join(__dirname, '..', process.env.GOOGLE_SERVICE_ACCOUNT_FILE);
     return fs.existsSync(filePath);
   }
+  // Option E: OAuth2 Refresh Token
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN) {
     return true;
   }
@@ -25,7 +41,41 @@ function isDriveConfigured() {
  * Creates authenticated Google Drive client
  */
 function getDriveClient() {
-  // Option 1: Service Account via Environment Variables
+  // Option 1: Render Secret File (/etc/secrets/service-account.json)
+  const renderSecretPath = '/etc/secrets/service-account.json';
+  if (fs.existsSync(renderSecretPath)) {
+    const auth = new google.auth.GoogleAuth({
+      keyFile: renderSecretPath,
+      scopes: [
+        'https://www.googleapis.com/auth/drive',
+        'https://www.googleapis.com/auth/drive.file'
+      ]
+    });
+    return google.drive({ version: 'v3', auth });
+  }
+
+  // Option 2: Entire Service Account JSON passed as string in GOOGLE_SERVICE_ACCOUNT_JSON
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    try {
+      const credentials = typeof process.env.GOOGLE_SERVICE_ACCOUNT_JSON === 'string'
+        ? JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON)
+        : process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+      const privateKey = (credentials.private_key || '').replace(/\\n/g, '\n');
+      const auth = new google.auth.JWT({
+        email: credentials.client_email,
+        key: privateKey,
+        scopes: [
+          'https://www.googleapis.com/auth/drive',
+          'https://www.googleapis.com/auth/drive.file'
+        ]
+      });
+      return google.drive({ version: 'v3', auth });
+    } catch (parseErr) {
+      console.error('❌ Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON:', parseErr.message);
+    }
+  }
+
+  // Option 3: Service Account via Individual Environment Variables
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const privateKeyRaw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY || process.env.GOOGLE_PRIVATE_KEY;
 
@@ -42,7 +92,7 @@ function getDriveClient() {
     return google.drive({ version: 'v3', auth });
   }
 
-  // Option 2: Service Account JSON file path
+  // Option 4: Service Account JSON file path
   if (process.env.GOOGLE_SERVICE_ACCOUNT_FILE) {
     const filePath = path.isAbsolute(process.env.GOOGLE_SERVICE_ACCOUNT_FILE)
       ? process.env.GOOGLE_SERVICE_ACCOUNT_FILE
@@ -60,7 +110,7 @@ function getDriveClient() {
     }
   }
 
-  // Option 3: OAuth2 Refresh Token
+  // Option 5: OAuth2 Refresh Token
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN) {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,

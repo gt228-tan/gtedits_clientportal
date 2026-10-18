@@ -107,8 +107,8 @@ const sendBrevoEmail = async ({
     console.log(`✉️ [Brevo] Email sent successfully to ${to} (MessageId: ${messageId})`);
     return { success: true, email: to, messageId };
   } catch (err) {
-    const errMsg = err?.body?.message || err?.message || JSON.stringify(err);
-    console.error(`❌ [Brevo Error] Failed to send email to ${to}:`, errMsg);
+    const errMsg = err?.response?.body?.message || err?.response?.data?.message || err?.body?.message || err?.message || JSON.stringify(err);
+    console.error(`❌ [Brevo Error] Failed to send email to ${to}:`, errMsg, err?.response?.body || err?.response?.data || '');
     return { success: false, reason: errMsg };
   }
 };

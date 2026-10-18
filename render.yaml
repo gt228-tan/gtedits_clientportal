@@ -24,3 +24,7 @@ services:
         sync: false
       - key: SERVER_URL
         sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: GOOGLE_DRIVE_PARENT_FOLDER_ID
+        sync: false
