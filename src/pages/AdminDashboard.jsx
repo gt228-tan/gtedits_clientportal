@@ -48,7 +48,8 @@ export default function AdminDashboard() {
   const [syncDriveBusy, setSyncDriveBusy] = useState(false);
   const [sendingReminderId, setSendingReminderId] = useState(null);
   const [markingPaidId, setMarkingPaidId] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard');  // 'dashboard' | 'requests' | 'projects'
+  const [activeTab, setActiveTab] = useState('dashboard');  // 'dashboard' | 'clients' | 'projects' | 'requests'
+  const [showOverdueDrawer, setShowOverdueDrawer] = useState(false);
 
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -111,22 +112,157 @@ export default function AdminDashboard() {
     }
   }, [getToken]);
 
+  // ── Load projects on mount and tab switch ───────────────────
   useEffect(() => {
-    if (activeTab === 'projects') loadProjects();
-  }, [activeTab, loadProjects]);
+    loadProjects();
+  }, [loadProjects]);
 
   const revisionCount = projects.filter(p => p.status === 'revision_requested').length;
 
-  // ── Derived summary ────────────────────────────────────────
-  let totalEarned = 0, totalPending = 0;
-  Object.values(clients).forEach(c => {
+  // ── Derived Financial & Revenue Analytics ───────────────────
+  let totalEarned = 0;
+  let totalPending = 0;
+  let purePendingAmt = 0;
+  let totalAdvanceCollected = 0;
+  let remainingOnAdvance = 0;
+  let paidInFullAmt = 0;
+
+  // Unpaid balance aging
+  const todayDate = new Date();
+  todayDate.setHours(0, 0, 0, 0);
+
+  const agingFresh = { count: 0, amount: 0 };    // < 7 days
+  const agingModerate = { count: 0, amount: 0 }; // 7-14 days
+  const agingOverdue = { count: 0, amount: 0, clients: [] }; // > 14 days
+
+  // Monthly earnings tracking: 'YYYY-MM' => number
+  const monthlyEarningsMap = {};
+
+  Object.entries(clients).forEach(([clientId, c]) => {
+    let clientOverdueAmt = 0;
+    let clientOldestOverdueDays = 0;
+
     Object.values(c.work || {}).forEach(w => {
+      if (!w) return;
       const amt = Number(w.qty || 1) * Number(w.price || w.amt || 0);
-      if (w.status === 'Paid') { totalEarned += amt; }
-      else if (w.status === 'Advance') { const adv = Number(w.advance || 0); totalEarned += adv; totalPending += (amt - adv); }
-      else { totalPending += amt; }
+      const isPaid = w.status === 'Paid';
+      const isAdvance = w.status === 'Advance';
+      const adv = Number(w.advance || 0);
+
+      if (isPaid) {
+        totalEarned += amt;
+        paidInFullAmt += amt;
+      } else if (isAdvance) {
+        totalEarned += adv;
+        totalAdvanceCollected += adv;
+        const rem = Math.max(0, amt - adv);
+        totalPending += rem;
+        remainingOnAdvance += rem;
+      } else {
+        totalPending += amt;
+        purePendingAmt += amt;
+      }
+
+      // Track monthly collections by work item date
+      const collectedPart = isPaid ? amt : isAdvance ? adv : 0;
+      if (collectedPart > 0 && w.date) {
+        const mKey = String(w.date).slice(0, 7);
+        if (mKey.length === 7) {
+          monthlyEarningsMap[mKey] = (monthlyEarningsMap[mKey] || 0) + collectedPart;
+        }
+      }
+
+      // Unpaid aging analysis
+      if (!isPaid) {
+        const unpaidPart = isAdvance ? Math.max(0, amt - adv) : amt;
+        if (unpaidPart > 0) {
+          let days = 0;
+          if (w.date) {
+            const itemD = new Date(w.date);
+            if (!isNaN(itemD.getTime())) {
+              days = Math.max(0, Math.floor((todayDate.getTime() - itemD.getTime()) / (1000 * 60 * 60 * 24)));
+            }
+          }
+
+          if (days < 7) {
+            agingFresh.count++;
+            agingFresh.amount += unpaidPart;
+          } else if (days <= 14) {
+            agingModerate.count++;
+            agingModerate.amount += unpaidPart;
+          } else {
+            agingOverdue.count++;
+            agingOverdue.amount += unpaidPart;
+            clientOverdueAmt += unpaidPart;
+            if (days > clientOldestOverdueDays) {
+              clientOldestOverdueDays = days;
+            }
+          }
+        }
+      }
     });
+
+    if (clientOverdueAmt > 0) {
+      agingOverdue.clients.push({
+        id: clientId,
+        name: c.name || 'Client',
+        email: c.notificationEmail || c.contactEmail || '',
+        overdueAmt: clientOverdueAmt,
+        days: clientOldestOverdueDays,
+        clientObj: c,
+      });
+    }
   });
+
+  // Sort overdue clients descending by overdue amount
+  agingOverdue.clients.sort((a, b) => b.overdueAmt - a.overdueAmt);
+
+  // Generate last 6 months list for bar chart
+  const recentMonths = (() => {
+    const list = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('en-IN', { month: 'short' });
+      const fullLabel = d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+      list.push({ key, label, fullLabel, total: monthlyEarningsMap[key] || 0 });
+    }
+    return list;
+  })();
+
+  const currentMonthData = recentMonths[recentMonths.length - 1];
+  const prevMonthData = recentMonths[recentMonths.length - 2];
+  const currentMonthRevenue = currentMonthData ? currentMonthData.total : 0;
+  const prevMonthRevenue = prevMonthData ? prevMonthData.total : 0;
+
+  let momGrowth = 0;
+  let momTrend = 'neutral';
+  if (prevMonthRevenue > 0) {
+    momGrowth = Math.round(((currentMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100);
+    momTrend = momGrowth >= 0 ? 'up' : 'down';
+  } else if (currentMonthRevenue > 0) {
+    momGrowth = 100;
+    momTrend = 'up';
+  }
+
+  const maxMonthValue = Math.max(...recentMonths.map(m => m.total), 1);
+
+  // Client & Project Averages
+  const totalClientsCount = Object.keys(clients).length;
+  const arpc = totalClientsCount > 0 ? Math.round(totalEarned / totalClientsCount) : 0;
+
+  const completedProjects = projects.filter(p => p.status === 'completed' && Number(p.amount || p.budget) > 0);
+  const projectsWithAmount = projects.filter(p => Number(p.amount || p.budget) > 0);
+  const avgProjectValue = completedProjects.length > 0
+    ? Math.round(completedProjects.reduce((s, p) => s + Number(p.amount || p.budget || 0), 0) / completedProjects.length)
+    : (projectsWithAmount.length > 0
+        ? Math.round(projectsWithAmount.reduce((s, p) => s + Number(p.amount || p.budget || 0), 0) / projectsWithAmount.length)
+        : 0);
+
+  const collectionRate = (totalEarned + totalPending) > 0
+    ? Math.round((totalEarned / (totalEarned + totalPending)) * 100)
+    : 100;
 
   // ── Add client ─────────────────────────────────────────────
   const handleAddClient = async (e) => {
@@ -721,6 +857,24 @@ export default function AdminDashboard() {
           </button>
 
           <button
+            className={`sidebar-item${activeTab === 'clients' ? ' active' : ''}`}
+            onClick={() => { setActiveTab('clients'); setSelectedProject(null); }}
+          >
+            <span className="sidebar-item-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </span>
+            <span className="sidebar-item-label">Clients</span>
+            <span className="wr-sidebar-badge badge-client-count">
+              {clientEntries.length}
+            </span>
+          </button>
+
+          <button
             className={`sidebar-item${activeTab === 'projects' ? ' active' : ''}`}
             onClick={() => { setActiveTab('projects'); setSelectedProject(null); }}
           >
@@ -776,7 +930,8 @@ export default function AdminDashboard() {
               <h1 className="admin-topbar-title">
                 {activeTab === 'requests' ? 'Work Requests'
                   : activeTab === 'projects' ? (selectedProject ? selectedProject.title : 'Projects')
-                    : 'Dashboard'}
+                    : activeTab === 'clients' ? 'Clients'
+                      : 'Dashboard & Analytics'}
               </h1>
               <p className="admin-topbar-sub">Welcome back, {BRAND_NAME} 👋</p>
             </div>
@@ -787,9 +942,14 @@ export default function AdminDashboard() {
                 <span className="search-icon">🔍</span>
                 <input
                   type="text"
-                  placeholder="Search anything…"
+                  placeholder={activeTab === 'clients' ? "Search client name or email…" : "Search anything…"}
                   value={clientSearch}
-                  onChange={e => setClientSearch(e.target.value)}
+                  onChange={e => {
+                    setClientSearch(e.target.value);
+                    if (activeTab === 'dashboard' && e.target.value.trim()) {
+                      setActiveTab('clients');
+                    }
+                  }}
                 />
                 {clientSearch && (
                   <button
@@ -804,7 +964,7 @@ export default function AdminDashboard() {
               </div>
 
               {/* Action Button: Create / Add Client */}
-              {activeTab === 'dashboard' && (
+              {activeTab === 'clients' && (
                 <button
                   type="button"
                   className="btn-create-pill"
@@ -814,6 +974,25 @@ export default function AdminDashboard() {
                       el.focus();
                       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
+                  }}
+                >
+                  <span className="btn-create-icon">＋</span> Add Client
+                </button>
+              )}
+
+              {activeTab === 'dashboard' && (
+                <button
+                  type="button"
+                  className="btn-create-pill"
+                  onClick={() => {
+                    setActiveTab('clients');
+                    setTimeout(() => {
+                      const el = document.getElementById('quick-add-client-input');
+                      if (el) {
+                        el.focus();
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }
+                    }, 50);
                   }}
                 >
                   <span className="btn-create-icon">＋</span> Add Client
@@ -870,19 +1049,186 @@ export default function AdminDashboard() {
         {/* ── Dashboard tab ── */}
         {activeTab === 'dashboard' && (
           <>
-            <div className="bento-overview-card">
+            {/* ── "Action Required" Quick-Response Widget ── */}
+            {pendingCount === 0 && revisionCount === 0 && agingOverdue.clients.length === 0 && missingDriveClientsCount === 0 ? (
+              <div className="action-all-clear">
+                <div className="action-clear-icon">✨</div>
+                <div className="action-clear-text">
+                  <h4>All Caught Up! Operations Running Smoothly</h4>
+                  <p>No pending work requests, revision feedback, overdue payments, or missing Drive folders.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="action-required-card">
+                <div className="action-grid">
+                  {/* Item 1: Pending Work Requests */}
+                  <div className="action-item-card">
+                    <div className="action-item-top">
+                      <div className="action-item-icon-box amber">📩</div>
+                      <div className="action-item-text">
+                        <div className="action-item-title-row">
+                          <span className="action-item-title">Work Requests</span>
+                          <span className={`action-count-pill ${pendingCount > 0 ? 'pill-amber' : ''}`}>
+                            {pendingCount} Pending
+                          </span>
+                        </div>
+                        <span className="action-item-sub">
+                          {pendingCount > 0 ? `${pendingCount} client request(s) waiting for quotation or approval` : 'All client requests handled'}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-action-cta cta-amber"
+                      onClick={() => setActiveTab('requests')}
+                    >
+                      Review Requests →
+                    </button>
+                  </div>
+
+                  {/* Item 2: Revision Requests */}
+                  <div className="action-item-card">
+                    <div className="action-item-top">
+                      <div className="action-item-icon-box red">🔄</div>
+                      <div className="action-item-text">
+                        <div className="action-item-title-row">
+                          <span className="action-item-title">Revisions</span>
+                          <span className={`action-count-pill ${revisionCount > 0 ? 'pill-red' : ''}`}>
+                            {revisionCount} Requested
+                          </span>
+                        </div>
+                        <span className="action-item-sub">
+                          {revisionCount > 0 ? `${revisionCount} project(s) with client revision notes` : 'No deliverables in revision'}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-action-cta cta-red"
+                      onClick={() => { setActiveTab('projects'); setSelectedProject(null); }}
+                    >
+                      View Revisions →
+                    </button>
+                  </div>
+
+                  {/* Item 3: Overdue Payments (>14 Days) */}
+                  <div className="action-item-card">
+                    <div className="action-item-top">
+                      <div className="action-item-icon-box red">💳</div>
+                      <div className="action-item-text">
+                        <div className="action-item-title-row">
+                          <span className="action-item-title">Overdue Dues</span>
+                          <span className={`action-count-pill ${agingOverdue.clients.length > 0 ? 'pill-red' : ''}`}>
+                            {agingOverdue.clients.length} Overdue (&gt;14d)
+                          </span>
+                        </div>
+                        <span className="action-item-sub">
+                          {agingOverdue.clients.length > 0
+                            ? `₹${agingOverdue.amount.toLocaleString('en-IN')} pending older than 14 days`
+                            : 'All dues within standard payment terms'}
+                        </span>
+                      </div>
+                    </div>
+                    {agingOverdue.clients.length > 0 ? (
+                      <button
+                        type="button"
+                        className="btn-action-cta cta-red"
+                        onClick={() => setShowOverdueDrawer(v => !v)}
+                      >
+                        {showOverdueDrawer ? 'Hide Overdue Clients ↑' : `View & Remind (${agingOverdue.clients.length}) ↓`}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-action-cta"
+                        onClick={() => { setActiveTab('clients'); setClientFilter('due'); }}
+                      >
+                        View Pending Clients →
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Item 4: Missing Google Drive Folders */}
+                  <div className="action-item-card">
+                    <div className="action-item-top">
+                      <div className="action-item-icon-box blue">📁</div>
+                      <div className="action-item-text">
+                        <div className="action-item-title-row">
+                          <span className="action-item-title">Drive Folders</span>
+                          <span className={`action-count-pill ${missingDriveClientsCount > 0 ? 'pill-blue' : ''}`}>
+                            {missingDriveClientsCount} Missing
+                          </span>
+                        </div>
+                        <span className="action-item-sub">
+                          {missingDriveClientsCount > 0 ? `${missingDriveClientsCount} client(s) need auto Drive folder link` : 'All client folders created & synced'}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-action-cta cta-blue"
+                      onClick={handleSyncAllDriveFolders}
+                      disabled={syncDriveBusy || missingDriveClientsCount === 0}
+                    >
+                      {syncDriveBusy ? '⏳ Syncing Folders…' : '⚡ Sync Drive Folders'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expandable Overdue Reminders Drawer */}
+                {showOverdueDrawer && agingOverdue.clients.length > 0 && (
+                  <div className="overdue-drawer-wrap">
+                    <div className="overdue-drawer-header">
+                      <span className="overdue-drawer-title">
+                        <span>💳 Overdue Clients with Dues Older Than 14 Days</span>
+                        <span className="action-count-pill pill-red">{agingOverdue.clients.length}</span>
+                      </span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        Click Send Reminder to email latest statement & invoice
+                      </span>
+                    </div>
+                    <div className="overdue-drawer-list">
+                      {agingOverdue.clients.map(c => (
+                        <div key={c.id} className="overdue-drawer-item">
+                          <div className="overdue-drawer-client-info">
+                            <div className="overdue-drawer-avatar">{c.name.charAt(0).toUpperCase()}</div>
+                            <div>
+                              <div className="overdue-drawer-name">{c.name}</div>
+                              <div className="overdue-drawer-sub">
+                                {c.email || 'No email set'} • Oldest unpaid: {c.days} days ago
+                              </div>
+                            </div>
+                          </div>
+                          <div className="overdue-drawer-actions">
+                            <span className="overdue-amt-tag">₹{c.overdueAmt.toLocaleString('en-IN')}</span>
+                            <button
+                              type="button"
+                              className="btn-overdue-remind"
+                              onClick={() => handleSendPaymentReminder(c.id, c.name, c.clientObj)}
+                              disabled={sendingReminderId === c.id}
+                            >
+                              {sendingReminderId === c.id ? 'Sending…' : '✉️ Send Reminder'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Top Bento Summary Cards ── */}
+            <div className="bento-overview-card" style={{ marginBottom: '22px' }}>
               <div className="bento-overview-header">
                 <div className="bento-overview-title-group">
-                  <h2 className="bento-overview-title">Overview</h2>
+                  <h2 className="bento-overview-title">Financial Overview</h2>
                   <span className="bento-live-badge">
                     <span className="live-dot" /> Live Updates
                   </span>
                 </div>
                 <div className="bento-timeframe-pill">
                   <span>All time</span>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
                 </div>
               </div>
 
@@ -897,7 +1243,7 @@ export default function AdminDashboard() {
                         <path d="M12 18V6" />
                       </svg>
                     </div>
-                    <span className="bento-stat-label">Total Revenue Earned</span>
+                    <span className="bento-stat-label">Total Revenue Collected</span>
                   </div>
                   <div className="bento-stat-bottom">
                     <span className="bento-stat-val">₹{totalEarned.toLocaleString('en-IN')}</span>
@@ -907,6 +1253,11 @@ export default function AdminDashboard() {
                       </svg>
                       Collected
                     </span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <span>Paid: ₹{paidInFullAmt.toLocaleString('en-IN')}</span>
+                    <span>•</span>
+                    <span>Advance in escrow: ₹{totalAdvanceCollected.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
 
@@ -919,17 +1270,22 @@ export default function AdminDashboard() {
                         <polyline points="12 6 12 12 16 14" />
                       </svg>
                     </div>
-                    <span className="bento-stat-label">Pending Payments</span>
+                    <span className="bento-stat-label">Outstanding Balance</span>
                   </div>
                   <div className="bento-stat-bottom">
                     <span className="bento-stat-val val-pending">₹{totalPending.toLocaleString('en-IN')}</span>
                     <span className="bento-trend-pill trend-warning">
-                      Due
+                      {dueClientsCount} Due
                     </span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <span>Pending: ₹{purePendingAmt.toLocaleString('en-IN')}</span>
+                    <span>•</span>
+                    <span>Adv. Remaining: ₹{remainingOnAdvance.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
 
-                {/* Active Clients Card */}
+                {/* Active Clients & Collection Rate Card */}
                 <div className="bento-stat-card stat-card-clients">
                   <div className="bento-stat-top">
                     <div className="bento-stat-icon-wrap icon-clients">
@@ -940,58 +1296,265 @@ export default function AdminDashboard() {
                         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                       </svg>
                     </div>
-                    <span className="bento-stat-label">Active Clients</span>
+                    <span className="bento-stat-label">Clients & Collection</span>
                   </div>
                   <div className="bento-stat-bottom">
                     <span className="bento-stat-val">{clientEntries.length}</span>
-                    <span className="bento-trend-pill trend-neutral">
-                      In Portal
+                    <span className="bento-trend-pill trend-up">
+                      {collectionRate}% Collected
+                    </span>
+                  </div>
+                  <div className="collection-progress-track">
+                    <div className="collection-progress-fill" style={{ width: `${collectionRate}%` }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Financial Analytics & Monthly Trend Row ── */}
+            <div className="analytics-section-grid">
+              {/* Left Panel: Revenue Collection vs Outstanding Breakdown */}
+              <div className="analytics-panel-card">
+                <div className="analytics-panel-header">
+                  <div>
+                    <h3 className="analytics-panel-title">
+                      <span>💰 Settlement Breakdown</span>
+                    </h3>
+                    <span className="analytics-panel-sub">
+                      Total Billed: ₹{(totalEarned + totalPending).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <span className="action-count-pill pill-blue">
+                    {collectionRate}% Collected
+                  </span>
+                </div>
+
+                <div className="collection-bar-wrap">
+                  <div className="collection-bar-meta">
+                    <span>Collection Progress</span>
+                    <span className="collection-rate-val">{collectionRate}% (₹{totalEarned.toLocaleString('en-IN')})</span>
+                  </div>
+                  <div className="collection-progress-track" style={{ height: '12px' }}>
+                    <div className="collection-progress-fill" style={{ width: `${collectionRate}%` }} />
+                  </div>
+                </div>
+
+                <div className="fin-breakdown-pills">
+                  <div className="fin-mini-box">
+                    <span className="fin-mini-label">✅ Paid in Full</span>
+                    <span className="fin-mini-val" style={{ color: 'var(--green)' }}>₹{paidInFullAmt.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="fin-mini-box">
+                    <span className="fin-mini-label">🛡️ Advance in Escrow</span>
+                    <span className="fin-mini-val" style={{ color: '#2563eb' }}>₹{totalAdvanceCollected.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="fin-mini-box">
+                    <span className="fin-mini-label">⏳ Pure Pending Due</span>
+                    <span className="fin-mini-val" style={{ color: '#ea580c' }}>₹{purePendingAmt.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="fin-mini-box">
+                    <span className="fin-mini-label">💳 Advance Remainder</span>
+                    <span className="fin-mini-val" style={{ color: '#d97706' }}>₹{remainingOnAdvance.toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Panel: Monthly Revenue Trend & Bar Chart */}
+              <div className="analytics-panel-card">
+                <div className="analytics-panel-header">
+                  <div>
+                    <h3 className="analytics-panel-title">
+                      <span>📈 Monthly Revenue & Trend</span>
+                    </h3>
+                    <span className="analytics-panel-sub">
+                      This Month: ₹{currentMonthRevenue.toLocaleString('en-IN')} (vs Last Month: ₹{prevMonthRevenue.toLocaleString('en-IN')})
+                    </span>
+                  </div>
+                  <span className={`bento-trend-pill ${momTrend === 'up' ? 'trend-up' : momTrend === 'down' ? 'trend-warning' : 'trend-neutral'}`}>
+                    {momTrend === 'up' ? '▲ +' : momTrend === 'down' ? '▼ ' : ''}{momGrowth}% MoM
+                  </span>
+                </div>
+
+                {/* 6-Month Proportional Bar Chart */}
+                <div className="month-chart-wrap">
+                  {recentMonths.map((m, idx) => {
+                    const isCurrent = idx === recentMonths.length - 1;
+                    const heightPercent = maxMonthValue > 0 ? Math.max(12, Math.round((m.total / maxMonthValue) * 100)) : 12;
+                    return (
+                      <div key={m.key} className="month-bar-col" title={`${m.fullLabel}: ₹${m.total.toLocaleString('en-IN')}`}>
+                        <span className="month-bar-value-tip">
+                          {m.total > 0 ? `₹${m.total >= 1000 ? Math.round(m.total / 1000) + 'k' : m.total}` : '₹0'}
+                        </span>
+                        <div
+                          className={`month-bar-pillar ${isCurrent ? 'bar-active' : ''}`}
+                          style={{ height: `${heightPercent}%` }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="month-labels-row">
+                  {recentMonths.map((m, idx) => {
+                    const isCurrent = idx === recentMonths.length - 1;
+                    return (
+                      <span key={m.key} className={`month-label-item ${isCurrent ? 'current-label' : ''}`}>
+                        {m.label} {isCurrent ? '•' : ''}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Aging Dues & Value Averages Row ── */}
+            <div className="analytics-section-grid">
+              {/* Left Panel: Unpaid Dues Aging Breakdown */}
+              <div className="analytics-panel-card">
+                <div className="analytics-panel-header">
+                  <div>
+                    <h3 className="analytics-panel-title">
+                      <span>⏳ Unpaid Dues Aging Breakdown</span>
+                    </h3>
+                    <span className="analytics-panel-sub">
+                      Track payment freshness and prevent bad debt
+                    </span>
+                  </div>
+                  {agingOverdue.clients.length > 0 && (
+                    <button
+                      type="button"
+                      className="action-count-pill pill-red"
+                      style={{ border: 'none', cursor: 'pointer' }}
+                      onClick={() => setShowOverdueDrawer(v => !v)}
+                    >
+                      {showOverdueDrawer ? 'Hide Details' : `Remind (${agingOverdue.clients.length})`}
+                    </button>
+                  )}
+                </div>
+
+                <div className="aging-grid-3">
+                  {/* Fresh < 7 days */}
+                  <div className="aging-card">
+                    <div className="aging-card-top">
+                      <span className="aging-badge green">🟢 Recent</span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>&lt; 7 Days</span>
+                    </div>
+                    <span className="aging-amount">₹{agingFresh.amount.toLocaleString('en-IN')}</span>
+                    <span className="aging-meta">{agingFresh.count} unpaid work items</span>
+                  </div>
+
+                  {/* Moderate 7-14 days */}
+                  <div className="aging-card">
+                    <div className="aging-card-top">
+                      <span className="aging-badge amber">🟡 Follow-up</span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>7–14 Days</span>
+                    </div>
+                    <span className="aging-amount">₹{agingModerate.amount.toLocaleString('en-IN')}</span>
+                    <span className="aging-meta">{agingModerate.count} unpaid work items</span>
+                  </div>
+
+                  {/* Critical Overdue > 14 days */}
+                  <div className="aging-card card-overdue">
+                    <div className="aging-card-top">
+                      <span className="aging-badge red">🔴 Overdue</span>
+                      <span style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 700 }}>&gt; 14 Days</span>
+                    </div>
+                    <span className="aging-amount">₹{agingOverdue.amount.toLocaleString('en-IN')}</span>
+                    <span className="aging-meta">{agingOverdue.count} items ({agingOverdue.clients.length} clients)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Panel: Average Client & Project Value */}
+              <div className="analytics-panel-card">
+                <div className="analytics-panel-header">
+                  <div>
+                    <h3 className="analytics-panel-title">
+                      <span>🎯 Client & Project Value</span>
+                    </h3>
+                    <span className="analytics-panel-sub">
+                      Key monetization and pricing benchmarks
+                    </span>
+                  </div>
+                  <span className="bento-trend-pill trend-neutral">
+                    {clientEntries.length} Profiles
+                  </span>
+                </div>
+
+                <div className="averages-grid">
+                  {/* ARPC Card */}
+                  <div className="avg-metric-card">
+                    <div className="avg-metric-label">
+                      <span>👤</span>
+                      <span>Average Revenue Per Client</span>
+                    </div>
+                    <span className="avg-metric-val">₹{arpc.toLocaleString('en-IN')}</span>
+                    <span className="avg-metric-sub">
+                      Total collected divided by {clientEntries.length} client accounts
+                    </span>
+                  </div>
+
+                  {/* Average Project Value Card */}
+                  <div className="avg-metric-card">
+                    <div className="avg-metric-label">
+                      <span>🎬</span>
+                      <span>Average Project Value</span>
+                    </div>
+                    <span className="avg-metric-val">₹{avgProjectValue.toLocaleString('en-IN')}</span>
+                    <span className="avg-metric-sub">
+                      {completedProjects.length > 0
+                        ? `Across ${completedProjects.length} completed deliverables`
+                        : `Across ${projectsWithAmount.length} budgeted projects`}
                     </span>
                   </div>
                 </div>
               </div>
+            </div>
+          </>
+        )}
 
-              {/* Quick Client Setup / Avatars banner strip */}
-              <div className="bento-client-strip">
-                <div className="bento-client-strip-info">
-                  <div className="bento-client-avatars">
-                    {clientEntries.slice(0, 5).map(([id, c]) => (
-                      <div key={id} className="bento-avatar-chip" title={c.name}>
-                        {c.name.charAt(0).toUpperCase()}
-                      </div>
-                    ))}
-                    {clientEntries.length > 5 && (
-                      <div className="bento-avatar-chip avatar-more" title={`${clientEntries.length - 5} more clients`}>
-                        +{clientEntries.length - 5}
-                      </div>
-                    )}
-                  </div>
-                  <div className="bento-client-strip-text">
-                    <strong>Quick Client Setup</strong>
-                    <span>Add client name & notification email to instantly create portal credentials & drive</span>
-                  </div>
+        {/* ── Clients tab ── */}
+        {activeTab === 'clients' && (
+          <>
+            {/* Quick Client Setup / Avatars banner strip */}
+            <div className="bento-client-strip" style={{ marginBottom: '22px' }}>
+              <div className="bento-client-strip-info">
+                <div className="bento-client-avatars">
+                  {clientEntries.slice(0, 5).map(([id, c]) => (
+                    <div key={id} className="bento-avatar-chip" title={c.name}>
+                      {c.name.charAt(0).toUpperCase()}
+                    </div>
+                  ))}
+                  {clientEntries.length > 5 && (
+                    <div className="bento-avatar-chip avatar-more" title={`${clientEntries.length - 5} more clients`}>
+                      +{clientEntries.length - 5}
+                    </div>
+                  )}
                 </div>
-
-                <form className="bento-quick-add-form" onSubmit={handleAddClient} autoComplete="off">
-                  <input
-                    id="quick-add-client-input"
-                    type="text"
-                    placeholder="Client name…"
-                    value={newName}
-                    onChange={e => setNewName(e.target.value)}
-                    required
-                  />
-                  <input
-                    type="email"
-                    placeholder="Notification Email (optional)…"
-                    value={newNotificationEmail}
-                    onChange={e => setNewNotificationEmail(e.target.value)}
-                  />
-                  <button type="submit" className="btn-add-client" disabled={addBusy}>
-                    {addBusy ? 'Creating…' : '＋ Add Client'}
-                  </button>
-                </form>
+                <div className="bento-client-strip-text">
+                  <strong>Quick Client Setup</strong>
+                  <span>Add client name & notification email to instantly create portal credentials & drive</span>
+                </div>
               </div>
+
+              <form className="bento-quick-add-form" onSubmit={handleAddClient} autoComplete="off">
+                <input
+                  id="quick-add-client-input"
+                  type="text"
+                  placeholder="Client name…"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  required
+                />
+                <input
+                  type="email"
+                  placeholder="Notification Email (optional)…"
+                  value={newNotificationEmail}
+                  onChange={e => setNewNotificationEmail(e.target.value)}
+                />
+                <button type="submit" className="btn-add-client" disabled={addBusy}>
+                  {addBusy ? 'Creating…' : '＋ Add Client'}
+                </button>
+              </form>
             </div>
 
             <section className="admin-section">
@@ -1025,7 +1588,7 @@ export default function AdminDashboard() {
                     <span className="search-icon">🔍</span>
                     <input
                       type="text"
-                      placeholder="Search client"
+                      placeholder="Search client name or email…"
                       value={clientSearch}
                       onChange={e => setClientSearch(e.target.value)}
                     />
@@ -1126,7 +1689,6 @@ export default function AdminDashboard() {
                       onMarkPaid={() => handleMarkAllPaid(id, c.name, c)}
                       isMarkingPaid={markingPaidId === id}
                       onCreateProject={() => {
-
                         setCreateForClient({
                           firebaseClientId: id,
                           clientFirebaseUid: c.uid || '',

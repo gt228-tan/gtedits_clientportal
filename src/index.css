@@ -6837,3 +6837,680 @@ a:hover {
   text-decoration: underline;
   opacity: 0.85;
 }
+
+/* ── Clients Navigation & Badge ────────────────────────────── */
+.badge-client-count {
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+
+/* ── "Action Required" Quick-Response Widget ────────────────── */
+.action-required-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 18px 20px;
+  margin-bottom: 22px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.action-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.action-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.action-card-title {
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: -0.01em;
+}
+
+.action-pulse-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+[data-theme="dark"] .action-pulse-badge {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.action-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #dc2626;
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.8);
+  animation: pulse-dot 1.8s infinite ease-in-out;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.action-item-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.action-item-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.action-item-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.action-item-icon-box {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+}
+
+.action-item-icon-box.amber {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+}
+
+.action-item-icon-box.red {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+
+.action-item-icon-box.blue {
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+}
+
+.action-item-icon-box.purple {
+  background: rgba(168, 85, 247, 0.15);
+  color: #9333ea;
+}
+
+.action-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.action-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.action-item-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.action-count-pill {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  line-height: 1.2;
+}
+
+.action-count-pill.pill-amber { background: #fef3c7; color: #b45309; }
+.action-count-pill.pill-red { background: #fee2e2; color: #b91c1c; }
+.action-count-pill.pill-blue { background: #dbeafe; color: #1d4ed8; }
+.action-count-pill.pill-purple { background: #f3e8ff; color: #7e22ce; }
+
+[data-theme="dark"] .action-count-pill.pill-amber { background: rgba(245, 158, 11, 0.25); color: #fde68a; }
+[data-theme="dark"] .action-count-pill.pill-red { background: rgba(239, 68, 68, 0.25); color: #fca5a5; }
+[data-theme="dark"] .action-count-pill.pill-blue { background: rgba(59, 130, 246, 0.25); color: #bfdbfe; }
+[data-theme="dark"] .action-count-pill.pill-purple { background: rgba(168, 85, 247, 0.25); color: #e9d5ff; }
+
+.action-item-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.btn-action-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-card);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-action-cta:hover {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
+.btn-action-cta.cta-amber:hover {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #ffffff;
+}
+
+.btn-action-cta.cta-red:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+}
+
+.btn-action-cta.cta-blue:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+/* All Clear State */
+.action-all-clear {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(16, 185, 129, 0.02) 100%);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  border-radius: var(--radius-xl);
+  padding: 18px 24px;
+  margin-bottom: 22px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.action-clear-icon {
+  font-size: 1.6rem;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 50%;
+  background: var(--green-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-clear-text h4 {
+  margin: 0 0 3px 0;
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--green);
+}
+
+.action-clear-text p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+/* ── Overdue Clients Action Drawer (inside Action Card) ──────── */
+.overdue-drawer-wrap {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border-strong);
+}
+
+.overdue-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.overdue-drawer-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-theme="dark"] .overdue-drawer-title {
+  color: #f87171;
+}
+
+.overdue-drawer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.overdue-drawer-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.overdue-drawer-client-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.overdue-drawer-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-weight: 800;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-theme="dark"] .overdue-drawer-avatar {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+}
+
+.overdue-drawer-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.overdue-drawer-sub {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.overdue-drawer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.overdue-amt-tag {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #dc2626;
+}
+
+[data-theme="dark"] .overdue-amt-tag {
+  color: #f87171;
+}
+
+.btn-overdue-remind {
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.15s;
+}
+
+.btn-overdue-remind:hover {
+  opacity: 0.9;
+}
+
+.btn-overdue-remind:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Financial & Revenue Analytics Section ──────────────────── */
+.analytics-section-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+@media (max-width: 900px) {
+  .analytics-section-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.analytics-panel-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.analytics-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.analytics-panel-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: -0.01em;
+}
+
+.analytics-panel-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* Progress bar for Collection Rate */
+.collection-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.collection-bar-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.collection-rate-val {
+  color: var(--green);
+}
+
+.collection-progress-track {
+  width: 100%;
+  height: 10px;
+  background: var(--bg3);
+  border-radius: 9999px;
+  overflow: hidden;
+  display: flex;
+  border: 1px solid var(--border);
+}
+
+.collection-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #16a34a, #22c55e);
+  border-radius: 9999px;
+  transition: width 0.5s ease-out;
+}
+
+.fin-breakdown-pills {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.fin-mini-box {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fin-mini-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.fin-mini-val {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+/* ── Monthly Revenue Bar Chart ──────────────────────────────── */
+.month-chart-wrap {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  height: 160px;
+  padding-top: 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.month-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+  position: relative;
+  cursor: default;
+}
+
+.month-bar-value-tip {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 6px;
+  white-space: nowrap;
+}
+
+.month-bar-pillar {
+  width: 100%;
+  max-width: 44px;
+  min-height: 8px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px 6px 0 0;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.month-bar-col:hover .month-bar-pillar {
+  background: rgba(34, 197, 94, 0.4);
+  border-color: var(--accent);
+  transform: scaleY(1.03);
+}
+
+.month-bar-pillar.bar-active {
+  background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+  border-color: #15803d;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);
+}
+
+[data-theme="dark"] .month-bar-pillar.bar-active {
+  background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
+  border-color: #16a34a;
+}
+
+.month-labels-row {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 10px;
+}
+
+.month-label-item {
+  flex: 1;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.month-label-item.current-label {
+  color: var(--green);
+  font-weight: 800;
+}
+
+/* ── Aging Dues 3-Column Grid ───────────────────────────────── */
+.aging-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 768px) {
+  .aging-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.aging-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: transform 0.15s;
+}
+
+.aging-card:hover {
+  transform: translateY(-2px);
+}
+
+.aging-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.aging-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 9999px;
+}
+
+.aging-badge.green { background: var(--green-bg); color: var(--green); }
+.aging-badge.amber { background: var(--peach-bg); color: var(--peach); }
+.aging-badge.red { background: #fee2e2; color: #dc2626; }
+
+[data-theme="dark"] .aging-badge.red { background: rgba(239, 68, 68, 0.25); color: #fca5a5; }
+
+.aging-amount {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.aging-card.card-overdue .aging-amount {
+  color: #dc2626;
+}
+
+[data-theme="dark"] .aging-card.card-overdue .aging-amount {
+  color: #f87171;
+}
+
+.aging-meta {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+/* ── Client / Project Average Metric Cards ──────────────────── */
+.averages-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.avg-metric-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.avg-metric-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.avg-metric-val {
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.avg-metric-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
