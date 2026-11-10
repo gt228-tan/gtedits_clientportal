@@ -213,7 +213,7 @@ You MUST respond strictly with valid JSON conforming to the following structure:
       } else {
         // Enforce that subtitles never add extra cost even if AI tried to
         plan.costEstimation.subtitlesIncludedFree = hasSubtitles;
-        
+
         // Recalculate breakdown totals to ensure zero math errors
         let sum = 0;
         plan.costEstimation.breakdown = plan.costEstimation.breakdown.map((b) => {

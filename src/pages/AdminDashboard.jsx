@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   db, secondaryAuth,
   ref, onValue, push, remove, update, set, get,
@@ -15,7 +15,11 @@ import ClientPreviewModal from '../components/ClientPreviewModal';
 import WorkRequestsPanel from '../components/WorkRequestsPanel';
 import ProjectDeliverablesSection from '../components/ProjectDeliverablesSection';
 import DeliverablePreviewModal from '../components/DeliverablePreviewModal';
+import InvoiceGeneratorModal from '../components/InvoiceGeneratorModal';
+import InvoicePreviewModal from '../components/InvoicePreviewModal';
 import ThemeToggle from '../components/ThemeToggle';
+import { generateCustomInvoicePdf } from '../generateInvoice';
+import { updateInvoiceStatus, deleteInvoice } from '../api/invoices';
 import { fetchProjects, createProject, deleteProject, updateProject, updateProjectStatus, fetchRevisions, sendClientPaymentReminder } from '../api/projects';
 import { getSectionMetaForSave } from '../utils';
 
@@ -48,8 +52,15 @@ export default function AdminDashboard() {
   const [syncDriveBusy, setSyncDriveBusy] = useState(false);
   const [sendingReminderId, setSendingReminderId] = useState(null);
   const [markingPaidId, setMarkingPaidId] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard');  // 'dashboard' | 'clients' | 'projects' | 'requests'
+  const [activeTab, setActiveTab] = useState('dashboard');  // 'dashboard' | 'clients' | 'projects' | 'requests' | 'invoices'
   const [showOverdueDrawer, setShowOverdueDrawer] = useState(false);
+
+  // ── Invoices state ─────────────────────────────────────────
+  const [showInvoiceGen, setShowInvoiceGen] = useState(false);
+  const [invoiceGenClientId, setInvoiceGenClientId] = useState(null);
+  const [previewInvoice, setPreviewInvoice] = useState(null);
+  const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [invoiceFilter, setInvoiceFilter] = useState('all'); // 'all' | 'pending' | 'paid'
 
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -118,6 +129,57 @@ export default function AdminDashboard() {
   }, [loadProjects]);
 
   const revisionCount = projects.filter(p => p.status === 'revision_requested').length;
+
+  // ── Aggregated Invoices across all clients ─────────────────
+  const allInvoices = useMemo(() => {
+    const list = [];
+    Object.entries(clients).forEach(([cid, c]) => {
+      if (c.invoices) {
+        Object.entries(c.invoices).forEach(([invId, inv]) => {
+          list.push({
+            ...inv,
+            id: invId,
+            clientId: cid,
+            clientName: inv.clientName || c.name || 'Client',
+            clientEmail: inv.clientEmail || c.notificationEmail || '',
+          });
+        });
+      }
+    });
+    return list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }, [clients]);
+
+  const filteredInvoices = useMemo(() => {
+    return allInvoices.filter(inv => {
+      const matchSearch = !invoiceSearch.trim() ||
+        (inv.invoiceNumber && inv.invoiceNumber.toLowerCase().includes(invoiceSearch.toLowerCase())) ||
+        (inv.clientName && inv.clientName.toLowerCase().includes(invoiceSearch.toLowerCase()));
+      const matchFilter = invoiceFilter === 'all' ||
+        (invoiceFilter === 'pending' && (inv.status || 'Pending').toLowerCase() !== 'paid') ||
+        (invoiceFilter === 'paid' && (inv.status || 'Pending').toLowerCase() === 'paid');
+      return matchSearch && matchFilter;
+    });
+  }, [allInvoices, invoiceSearch, invoiceFilter]);
+
+  const invoiceStats = useMemo(() => {
+    let totalAmt = 0;
+    let paidAmt = 0;
+    let pendingAmt = 0;
+    let pendingCount = 0;
+
+    allInvoices.forEach(inv => {
+      const amt = Number(inv.total || 0);
+      totalAmt += amt;
+      if ((inv.status || 'Pending').toLowerCase() === 'paid') {
+        paidAmt += amt;
+      } else {
+        pendingAmt += amt;
+        pendingCount += 1;
+      }
+    });
+
+    return { totalAmt, paidAmt, pendingAmt, pendingCount, totalCount: allInvoices.length };
+  }, [allInvoices]);
 
   // ── Derived Financial & Revenue Analytics ───────────────────
   let totalEarned = 0;
@@ -906,6 +968,25 @@ export default function AdminDashboard() {
               <span className="wr-sidebar-badge badge-pending">{pendingCount}</span>
             )}
           </button>
+
+          <button
+            className={`sidebar-item${activeTab === 'invoices' ? ' active' : ''}`}
+            onClick={() => { setActiveTab('invoices'); setSelectedProject(null); }}
+          >
+            <span className="sidebar-item-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+            </span>
+            <span className="sidebar-item-label">Invoices</span>
+            {invoiceStats.pendingCount > 0 && (
+              <span className="wr-sidebar-badge badge-pending">{invoiceStats.pendingCount}</span>
+            )}
+          </button>
         </nav>
 
         <div className="sidebar-footer">
@@ -931,7 +1012,8 @@ export default function AdminDashboard() {
                 {activeTab === 'requests' ? 'Work Requests'
                   : activeTab === 'projects' ? (selectedProject ? selectedProject.title : 'Projects')
                     : activeTab === 'clients' ? 'Clients'
-                      : 'Dashboard & Analytics'}
+                      : activeTab === 'invoices' ? 'Invoices & Billing'
+                        : 'Dashboard & Analytics'}
               </h1>
               <p className="admin-topbar-sub">Welcome back, {BRAND_NAME} 👋</p>
             </div>
@@ -1012,6 +1094,20 @@ export default function AdminDashboard() {
               {activeTab === 'projects' && selectedProject && (
                 <button className="btn-secondary" onClick={() => setSelectedProject(null)}>
                   ← All Projects
+                </button>
+              )}
+
+              {activeTab === 'invoices' && (
+                <button
+                  type="button"
+                  className="btn-create-pill"
+                  onClick={() => {
+                    setInvoiceGenClientId(null);
+                    setShowInvoiceGen(true);
+                  }}
+                  title="Generate a new invoice"
+                >
+                  <span className="btn-create-icon">＋</span> Create Invoice
                 </button>
               )}
 
@@ -1673,6 +1769,10 @@ export default function AdminDashboard() {
                       id={id}
                       client={c}
                       onOpenWork={() => setWorkTarget({ clientId: id, clientName: c.name })}
+                      onOpenInvoice={() => {
+                        setInvoiceGenClientId(id);
+                        setShowInvoiceGen(true);
+                      }}
                       onShowCred={() => setCredTarget({
                         name: c.name,
                         email: clientEmail(c.name),
@@ -1808,6 +1908,252 @@ export default function AdminDashboard() {
 
         {/* Work Requests panel */}
         {activeTab === 'requests' && <WorkRequestsPanel />}
+
+        {/* Invoices panel */}
+        {activeTab === 'invoices' && (
+          <div className="invoices-admin-panel" style={{ padding: '0 0 2rem' }}>
+            {/* Bento Stats Grid */}
+            <div className="bento-stats-grid" style={{ marginBottom: '1.5rem' }}>
+              <div className="bento-stat-card stat-card-clients">
+                <div className="bento-stat-top">
+                  <div className="bento-stat-icon-wrap icon-clients">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                  </div>
+                  <span className="bento-stat-label">Total Invoiced</span>
+                </div>
+                <div className="bento-stat-bottom">
+                  <span className="bento-stat-val">₹{invoiceStats.totalAmt.toLocaleString('en-IN')}</span>
+                  <span className="bento-trend-pill trend-neutral">{invoiceStats.totalCount} invoices</span>
+                </div>
+              </div>
+
+              <div className="bento-stat-card stat-card-earned">
+                <div className="bento-stat-top">
+                  <div className="bento-stat-icon-wrap">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="16 9 10 15 7 12" />
+                    </svg>
+                  </div>
+                  <span className="bento-stat-label">Paid Invoices</span>
+                </div>
+                <div className="bento-stat-bottom">
+                  <span className="bento-stat-val">₹{invoiceStats.paidAmt.toLocaleString('en-IN')}</span>
+                  <span className="bento-trend-pill trend-up">Collected</span>
+                </div>
+              </div>
+
+              <div className="bento-stat-card stat-card-pending">
+                <div className="bento-stat-top">
+                  <div className="bento-stat-icon-wrap icon-pending">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                  </div>
+                  <span className="bento-stat-label">Pending Payment</span>
+                </div>
+                <div className="bento-stat-bottom">
+                  <span className="bento-stat-val">₹{invoiceStats.pendingAmt.toLocaleString('en-IN')}</span>
+                  <span className="bento-trend-pill trend-warning">{invoiceStats.pendingCount} unpaid</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter and Action Header */}
+            <div className="invoices-filter-bar">
+              <div className="client-filter-group" role="tablist">
+                <button
+                  type="button"
+                  className={`filter-pill-btn ${invoiceFilter === 'all' ? 'active' : ''}`}
+                  onClick={() => setInvoiceFilter('all')}
+                >
+                  <span>🧾 All</span>
+                  <span className="pill-count">{allInvoices.length}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`filter-pill-btn pill-btn-due ${invoiceFilter === 'pending' ? 'active' : ''}`}
+                  onClick={() => setInvoiceFilter('pending')}
+                >
+                  <span>⏳ Pending</span>
+                  <span className={`pill-count ${invoiceStats.pendingCount > 0 ? 'count-warning' : ''}`}>
+                    {invoiceStats.pendingCount}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`filter-pill-btn ${invoiceFilter === 'paid' ? 'active' : ''}`}
+                  onClick={() => setInvoiceFilter('paid')}
+                >
+                  <span>✅ Paid</span>
+                  <span className="pill-count">{allInvoices.length - invoiceStats.pendingCount}</span>
+                </button>
+              </div>
+
+              <div className="invoices-header-actions">
+                <div className="client-search-box">
+                  <span className="search-icon">🔍</span>
+                  <input
+                    type="text"
+                    placeholder="Search invoice # or client…"
+                    value={invoiceSearch}
+                    onChange={(e) => setInvoiceSearch(e.target.value)}
+                  />
+                  {invoiceSearch && (
+                    <button
+                      type="button"
+                      className="search-clear-btn"
+                      onClick={() => setInvoiceSearch('')}
+                      title="Clear search"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-create-pill"
+                  onClick={() => {
+                    setInvoiceGenClientId(null);
+                    setShowInvoiceGen(true);
+                  }}
+                >
+                  <span className="btn-create-icon">＋</span> New Invoice
+                </button>
+              </div>
+            </div>
+
+            {/* Invoices List / Table */}
+            {filteredInvoices.length === 0 ? (
+              <div className="admin-empty invoice-empty-card">
+                <div className="empty-icon">🧾</div>
+                <p className="invoice-empty-title">
+                  {allInvoices.length === 0 ? 'No invoices created yet' : 'No invoices match your search or filter'}
+                </p>
+                <p className="invoice-empty-desc">
+                  {allInvoices.length === 0
+                    ? 'Generate professional invoices for your clients with customizable line items, advance deductions, and instant PDF downloads.'
+                    : 'Try adjusting your search terms or filter.'}
+                </p>
+                {allInvoices.length === 0 && (
+                  <button
+                    type="button"
+                    className="btn-create-pill"
+                    style={{ marginTop: '6px' }}
+                    onClick={() => {
+                      setInvoiceGenClientId(null);
+                      setShowInvoiceGen(true);
+                    }}
+                  >
+                    <span className="btn-create-icon">＋</span> Create Your First Invoice
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="invoices-table-card">
+                <div className="invoices-table-scroll">
+                  <table className="invoices-admin-table">
+                    <thead>
+                      <tr>
+                        <th>Invoice #</th>
+                        <th>Client</th>
+                        <th>Date / Due</th>
+                        <th>Items</th>
+                        <th style={{ textAlign: 'right' }}>Total</th>
+                        <th style={{ textAlign: 'center' }}>Status</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredInvoices.map((inv) => {
+                        const isPaid = (inv.status || 'Pending').toLowerCase() === 'paid';
+                        const itemCount = Array.isArray(inv.items) ? inv.items.length : 1;
+                        return (
+                          <tr key={inv.id}>
+                            <td className="inv-td-num">
+                              <span className="inv-num-pill">{inv.invoiceNumber}</span>
+                            </td>
+                            <td className="inv-td-client">
+                              <div className="inv-client-name">{inv.clientName}</div>
+                              {inv.clientEmail && (
+                                <div className="inv-client-email">{inv.clientEmail}</div>
+                              )}
+                            </td>
+                            <td className="inv-td-date">
+                              <div className="inv-date-issue">{inv.issueDate || '—'}</div>
+                              <div className="inv-date-due">Due: {inv.dueDate || '—'}</div>
+                            </td>
+                            <td className="inv-td-items">
+                              <span className="inv-items-badge">{itemCount} {itemCount === 1 ? 'item' : 'items'}</span>
+                            </td>
+                            <td className="inv-td-total" style={{ textAlign: 'right' }}>
+                              ₹{Number(inv.total || 0).toLocaleString('en-IN')}
+                            </td>
+                            <td className="inv-td-status" style={{ textAlign: 'center' }}>
+                              <span className={`inv-status-pill ${isPaid ? 'status-paid' : 'status-pending'}`}>
+                                {inv.status || 'Pending'}
+                              </span>
+                            </td>
+                            <td className="inv-td-actions" style={{ textAlign: 'right' }}>
+                              <div className="inv-actions-cluster">
+                                <button
+                                  type="button"
+                                  className="btn-invoice"
+                                  onClick={() => generateCustomInvoicePdf(inv)}
+                                  title="Download PDF copy"
+                                >
+                                  ⬇ PDF
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-secondary"
+                                  onClick={() => setPreviewInvoice(inv)}
+                                  title="View invoice"
+                                >
+                                  👁 View
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`btn-secondary inv-mark-btn ${isPaid ? 'is-paid' : ''}`}
+                                  onClick={async () => {
+                                    const newStatus = isPaid ? 'Pending' : 'Paid';
+                                    await updateInvoiceStatus(inv.clientId, inv.id, newStatus);
+                                    showToast(`✅ Marked as ${newStatus}`);
+                                  }}
+                                  title={isPaid ? 'Mark as Pending' : 'Mark as Paid'}
+                                >
+                                  {isPaid ? '✓ Paid' : '○ Mark Paid'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-del-invoice"
+                                  onClick={async () => {
+                                    if (!confirm(`Delete invoice ${inv.invoiceNumber}?`)) return;
+                                    await deleteInvoice(inv.clientId, inv.id);
+                                    showToast('🗑 Invoice deleted');
+                                  }}
+                                  title="Delete invoice"
+                                >
+                                  🗑
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <footer className="portal-footer" style={{ marginLeft: 0 }}>
           <p>By <a href="https://instagram.com/gt._.edits">@gt._.edits</a></p>
@@ -1965,6 +2311,36 @@ export default function AdminDashboard() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Invoice Generator Modal */}
+      {showInvoiceGen && (
+        <InvoiceGeneratorModal
+          isOpen={showInvoiceGen}
+          clients={clients}
+          initialClientId={invoiceGenClientId}
+          existingInvoices={allInvoices}
+          onClose={() => {
+            setShowInvoiceGen(false);
+            setInvoiceGenClientId(null);
+          }}
+          onSaved={() => {
+            // real-time listener automatically updates clients and allInvoices
+          }}
+        />
+      )}
+
+      {/* Invoice Preview Modal */}
+      {previewInvoice && (
+        <InvoicePreviewModal
+          invoice={previewInvoice}
+          isAdmin={true}
+          onClose={() => setPreviewInvoice(null)}
+          onStatusChange={(newStatus) => {
+            setPreviewInvoice(prev => prev ? { ...prev, status: newStatus } : null);
+          }}
+          onDelete={() => setPreviewInvoice(null)}
+        />
       )}
     </div>
   );
@@ -2149,7 +2525,7 @@ function ProjectDetailView({ project, getToken, onDelete, onStatusChange, onProj
 }
 
 // ── Client Card ────────────────────────────────────────────
-function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, onUpdateEmail, onCreateDriveFolder, onPreview, onDelete, onCreateProject, onSendReminder, isSendingReminder, onMarkPaid, isMarkingPaid }) {
+function ClientCard({ id, client, onOpenWork, onOpenInvoice, onShowCred, onSetupAuth, onReset, onUpdateEmail, onCreateDriveFolder, onPreview, onDelete, onCreateProject, onSendReminder, isSendingReminder, onMarkPaid, isMarkingPaid }) {
   const [menuOpen, setMenuOpen] = useState(null); // 'top' | 'bottom' | null
   const [copied, setCopied] = useState(false);
   const topMenuRef = useRef(null);
@@ -2489,6 +2865,20 @@ function ClientCard({ id, client, onOpenWork, onShowCred, onSetupAuth, onReset, 
             <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
           </svg>
           Work
+        </button>
+
+        <button
+          type="button"
+          className="clean-btn-card-action"
+          onClick={onOpenInvoice}
+          title="Create or Manage Invoices for this Client"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+          </svg>
+          Invoice
         </button>
 
         <button

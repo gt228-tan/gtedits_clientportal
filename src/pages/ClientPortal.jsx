@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback, Fragment } from 'react';
+import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { db, ref, onValue, push } from '../firebase';
 import { useAuth, BRAND_NAME } from '../contexts/AuthContext';
 import Toast, { showToast } from '../components/Toast';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import WorkRequestForm from '../components/WorkRequestForm';
 import DeliverablePreviewModal from '../components/DeliverablePreviewModal';
+import InvoicePreviewModal from '../components/InvoicePreviewModal';
 import ThemeToggle from '../components/ThemeToggle';
-import { generateInvoice } from '../generateInvoice';
+import { generateInvoice, generateCustomInvoicePdf, formatCurrency } from '../generateInvoice';
 import { buildWorkSections, computeTotals, formatDate, getSectionMetaForSave } from '../utils';
 import { fetchClientRequests } from '../api/workRequests';
 import { fetchClientProjects } from '../api/projects';
@@ -50,7 +51,8 @@ export default function ClientPortal() {
   const [myRequests, setMyRequests] = useState([]);
 
   // ── Projects state ─────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState('payments'); // 'payments' | 'projects'
+  const [activeTab, setActiveTab] = useState('payments'); // 'payments' | 'projects' | 'invoices'
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [projects, setProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -69,11 +71,44 @@ export default function ClientPortal() {
       if (snap.exists()) {
         const val = snap.val();
         if (!val.work) val.work = {};
+        if (!val.invoices) val.invoices = {};
         setClient(val);
       }
     });
     return unsub;
   }, [clientId]);
+
+  // ── Invoices memoized ──────────────────────────────────────
+  const clientInvoices = useMemo(() => {
+    if (!client || !client.invoices) return [];
+    return Object.entries(client.invoices).map(([invId, inv]) => ({
+      ...inv,
+      id: invId,
+      clientId,
+      clientName: inv.clientName || name,
+      clientEmail: inv.clientEmail || currentUser?.email || '',
+    })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }, [client, clientId, name, currentUser]);
+
+  const unpaidInvoicesCount = useMemo(() => {
+    return clientInvoices.filter(inv => (inv.status || 'Pending').toLowerCase() !== 'paid').length;
+  }, [clientInvoices]);
+
+  const invoiceTotals = useMemo(() => {
+    let invoiced = 0;
+    let paid = 0;
+    let due = 0;
+    clientInvoices.forEach(inv => {
+      const amt = Number(inv.total || 0);
+      invoiced += amt;
+      if ((inv.status || 'Pending').toLowerCase() === 'paid') {
+        paid += amt;
+      } else {
+        due += amt;
+      }
+    });
+    return { invoiced, paid, due };
+  }, [clientInvoices]);
 
   // ── Fetch client's own work requests ────────────────────────
   const loadRequests = useCallback(async () => {
@@ -304,6 +339,29 @@ export default function ClientPortal() {
 
           <button
             type="button"
+            className={`sidebar-item${activeTab === 'invoices' ? ' active' : ''}`}
+            onClick={() => {
+              setActiveTab('invoices');
+              setSelectedProject(null);
+            }}
+          >
+            <span className="sidebar-item-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+            </span>
+            <span className="sidebar-item-label">Invoices</span>
+            {unpaidInvoicesCount > 0 && (
+              <span className="wr-sidebar-badge badge-pending">{unpaidInvoicesCount}</span>
+            )}
+          </button>
+
+          <button
+            type="button"
             className="sidebar-item"
             onClick={() => {
               setActiveTab('payments');
@@ -398,9 +456,13 @@ export default function ClientPortal() {
                   ? selectedProject.title
                   : activeTab === 'projects'
                     ? 'My Projects'
-                    : 'My Payments'}
+                    : activeTab === 'invoices'
+                      ? 'My Invoices'
+                      : 'My Payments'}
               </h1>
-              <p className="admin-topbar-sub">Hello, {name} 👋 {activeTab === 'payments' ? "Here's your work summary." : 'Your projects.'}</p>
+              <p className="admin-topbar-sub">
+                Hello, {name} 👋 {activeTab === 'payments' ? "Here's your work summary." : activeTab === 'invoices' ? 'View and download official invoices.' : 'Your projects.'}
+              </p>
             </div>
 
             <div className="admin-topbar-actions">
@@ -408,6 +470,16 @@ export default function ClientPortal() {
                 <button className="btn-secondary" onClick={() => setSelectedProject(null)}>
                   ← All Projects
                 </button>
+              )}
+              {activeTab === 'invoices' && (
+                <>
+                  <button className="btn-invoice" onClick={handleDownloadInvoice} disabled={pdfBusy} title="Download live unpaid balance statement">
+                    {pdfBusy ? '⏳ Generating…' : '⬇ Live Statement'}
+                  </button>
+                  <button className="btn-create-pill" onClick={() => setShowRequestForm(true)} title="Submit a new work request">
+                    <span className="btn-create-icon">＋</span> New Request
+                  </button>
+                </>
               )}
               {activeTab === 'payments' && (
                 <>
@@ -927,6 +999,204 @@ export default function ClientPortal() {
           </section>
         )}
 
+        {/* ── Invoices Tab ── */}
+        {activeTab === 'invoices' && (
+          <section className="client-invoices-section" style={{ padding: '0 0 2rem' }}>
+            {/* Bento Stats Grid */}
+            <div className="bento-stats-grid" style={{ marginBottom: '1.5rem' }}>
+              <div className="bento-stat-card stat-card-clients">
+                <div className="bento-stat-top">
+                  <div className="bento-stat-icon-wrap icon-clients">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                  </div>
+                  <span className="bento-stat-label">Total Invoiced</span>
+                </div>
+                <div className="bento-stat-bottom">
+                  <span className="bento-stat-val">₹{invoiceTotals.invoiced.toLocaleString('en-IN')}</span>
+                  <span className="bento-trend-pill trend-neutral">{clientInvoices.length} invoices</span>
+                </div>
+              </div>
+
+              <div className="bento-stat-card stat-card-earned">
+                <div className="bento-stat-top">
+                  <div className="bento-stat-icon-wrap">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="16 9 10 15 7 12" />
+                    </svg>
+                  </div>
+                  <span className="bento-stat-label">Total Paid</span>
+                </div>
+                <div className="bento-stat-bottom">
+                  <span className="bento-stat-val">₹{invoiceTotals.paid.toLocaleString('en-IN')}</span>
+                  <span className="bento-trend-pill trend-up">Paid</span>
+                </div>
+              </div>
+
+              <div className="bento-stat-card stat-card-pending">
+                <div className="bento-stat-top">
+                  <div className="bento-stat-icon-wrap icon-pending">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                  </div>
+                  <span className="bento-stat-label">Balance Due</span>
+                </div>
+                <div className="bento-stat-bottom">
+                  <span className="bento-stat-val">₹{invoiceTotals.due.toLocaleString('en-IN')}</span>
+                  <span className="bento-trend-pill trend-warning">{unpaidInvoicesCount} pending</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Invoices List Container */}
+            <div style={{
+              background: 'var(--bg-card)',
+              borderRadius: '12px',
+              border: '1px solid var(--border)',
+              padding: '1.25rem',
+              marginBottom: '1.5rem'
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '0.8rem',
+                marginBottom: '1.25rem',
+                paddingBottom: '1rem',
+                borderBottom: '1px solid var(--border)'
+              }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>Official Invoices</h3>
+                  <p style={{ margin: '0.15rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Download official tax invoices or view itemized breakdowns
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-invoice"
+                  onClick={handleDownloadInvoice}
+                  disabled={pdfBusy}
+                  title="Download instant statement of all current unpaid work"
+                >
+                  {pdfBusy ? '⏳ Generating…' : '⬇ Download Live Statement (PDF)'}
+                </button>
+              </div>
+
+              {clientInvoices.length === 0 ? (
+                <div className="admin-empty invoice-empty-card">
+                  <div className="empty-icon">🧾</div>
+                  <p className="invoice-empty-title">
+                    No official invoices issued yet
+                  </p>
+                  <p className="invoice-empty-desc">
+                    Any formal invoices issued by GT Edits will appear here for instant download. You can also generate an on-the-fly statement of your current unpaid work using the button above.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-create-pill"
+                    onClick={handleDownloadInvoice}
+                    disabled={pdfBusy}
+                  >
+                    ⬇ Download Current Statement
+                  </button>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--bg3)', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.78rem', textTransform: 'uppercase' }}>
+                        <th style={{ padding: '0.75rem 1rem' }}>Invoice #</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Date</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Due Date</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Items</th>
+                        <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Amount Due</th>
+                        <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Status</th>
+                        <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Download</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clientInvoices.map((inv) => {
+                        const isPaid = (inv.status || 'Pending').toLowerCase() === 'paid';
+                        const itemCount = Array.isArray(inv.items) ? inv.items.length : 1;
+                        return (
+                          <tr key={inv.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                            <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--text)' }}>
+                              {inv.invoiceNumber}
+                            </td>
+                            <td style={{ padding: '0.85rem 1rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                              {inv.issueDate || '—'}
+                            </td>
+                            <td style={{ padding: '0.85rem 1rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                              {inv.dueDate || 'Upon Receipt'}
+                            </td>
+                            <td style={{ padding: '0.85rem 1rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                              {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                            </td>
+                            <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700, color: 'var(--text)' }}>
+                              ₹{Number(inv.total || 0).toLocaleString('en-IN')}
+                            </td>
+                            <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '0.2rem 0.65rem',
+                                borderRadius: '999px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                background: isPaid ? 'rgba(34, 197, 94, 0.14)' : 'rgba(234, 88, 12, 0.14)',
+                                color: isPaid ? '#16a34a' : '#ea580c'
+                              }}>
+                                {inv.status || 'Pending'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
+                              <div style={{ display: 'inline-flex', gap: '0.45rem', alignItems: 'center' }}>
+                                <button
+                                  type="button"
+                                  className="btn-invoice"
+                                  onClick={async () => {
+                                    try {
+                                      await generateCustomInvoicePdf(inv);
+                                      showToast('✅ Invoice downloaded!');
+                                    } catch (err) {
+                                      console.error(err);
+                                      showToast('❌ PDF download failed', 'warn');
+                                    }
+                                  }}
+                                  title="Download PDF"
+                                  style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
+                                >
+                                  ⬇ Download PDF
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-secondary"
+                                  onClick={() => setSelectedInvoice(inv)}
+                                  title="View invoice details"
+                                  style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}
+                                >
+                                  👁 View
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
         <footer className="portal-footer" style={{ marginLeft: 0 }}>
           <p>By <a href="https://instagram.com/gt._.edits">@gt._.edits</a></p>
         </footer>
@@ -990,6 +1260,15 @@ export default function ClientPortal() {
           deliverable={previewTarget}
           token={previewTarget._token}
           onClose={() => setPreviewTarget(null)}
+        />
+      )}
+
+      {/* Invoice preview modal */}
+      {selectedInvoice && (
+        <InvoicePreviewModal
+          invoice={selectedInvoice}
+          isAdmin={false}
+          onClose={() => setSelectedInvoice(null)}
         />
       )}
     </div>
