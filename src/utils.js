@@ -112,7 +112,7 @@ export function computeTotals(work) {
     const amt = Number(w.qty || 1) * Number(w.price || w.amt || 0);
     total += amt;
     if (w.status === 'Paid')    { paid += amt; }
-    else if (w.status === 'Advance') { const adv = Number(w.advance || 0); paid += adv; pending += (amt - adv); }
+    else if (w.status === 'Advance') { const adv = Number(w.advance || 0); paid += adv; pending += Math.max(0, amt - adv); }
     else { pending += amt; }
   });
   return { paid, pending, total };

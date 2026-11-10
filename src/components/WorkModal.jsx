@@ -88,10 +88,33 @@ export default function WorkModal({ clientId, clientName, work, onClose, onAdvan
 
   const [workTab, setWorkTab] = useState('Remaining'); // 'Remaining' | 'Paid' | 'All'
 
-  // Subtotal
-  const subtotal = Object.values(work || {}).reduce(
-    (s, w) => s + (Number(w.qty || 1) * Number(w.price || w.amt || 0)), 0
-  );
+  // Calculate remaining payment total (excludes Paid items, deducts Advance)
+  const remainingTotal = Object.values(work || {}).reduce((s, w) => {
+    const q = Number(w.qty || 1);
+    const p = Number(w.price || w.amt || 0);
+    const lineTotal = q * p;
+    const status = w.status || 'Pending';
+    if (status === 'Paid') return s;
+    if (status === 'Advance') {
+      const adv = Number(w.advance || 0);
+      return s + Math.max(0, lineTotal - adv);
+    }
+    return s + lineTotal;
+  }, 0);
+
+  // Calculate paid total
+  const paidTotal = Object.values(work || {}).reduce((s, w) => {
+    const q = Number(w.qty || 1);
+    const p = Number(w.price || w.amt || 0);
+    const lineTotal = q * p;
+    const status = w.status || 'Pending';
+    if (status === 'Paid') return s + lineTotal;
+    if (status === 'Advance') {
+      const adv = Number(w.advance || 0);
+      return s + adv;
+    }
+    return s;
+  }, 0);
 
   const workItems     = Object.entries(work || {}).map(([wid, w]) => ({ wid, ...w }));
   const remainingWork = workItems.filter(w => (w.status || 'Pending') !== 'Paid');
@@ -242,11 +265,11 @@ export default function WorkModal({ clientId, clientName, work, onClose, onAdvan
           )}
         </div>
 
-        {/* Subtotal */}
+        {/* Summary */}
         <div className="work-summary">
           <div className="work-summary-row total-row">
-            <span>Subtotal</span>
-            <span>₹{subtotal.toLocaleString('en-IN')}</span>
+            <span>{workTab === 'Paid' ? 'Total Paid' : 'Remaining Payment'}</span>
+            <span>₹{(workTab === 'Paid' ? paidTotal : remainingTotal).toLocaleString('en-IN')}</span>
           </div>
         </div>
 
