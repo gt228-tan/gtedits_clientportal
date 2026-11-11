@@ -65,7 +65,24 @@ export default function InvoiceGeneratorModal({
 
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [viewMode, setViewMode] = useState('split'); // 'split' | 'form' | 'preview'
+  const [viewMode, setViewMode] = useState(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 900) {
+      return 'form';
+    }
+    return 'split';
+  });
+
+  // Responsive safeguard: switch out of 'split' on mobile/tablet screens
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 900 && viewMode === 'split') {
+        setViewMode('form');
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [viewMode]);
 
   // Load persistent signature & bank defaults from Firebase on mount
   useEffect(() => {
@@ -431,74 +448,84 @@ export default function InvoiceGeneratorModal({
         
         {/* Modal Top Sticky Header */}
         <div className="inv-modal-header">
-          <div className="inv-modal-title-group">
-            <span style={{ fontSize: '1.4rem' }}>🧾</span>
-            <div>
-              <h3 className="inv-modal-title">
-                {initialInvoice ? 'Edit Invoice' : 'Create & Issue Invoice'}
-              </h3>
-              <p className="inv-modal-sub">
-                Official invoice generator matching your standard structure & layout
-              </p>
+          <div className="inv-header-main">
+            <div className="inv-modal-title-group">
+              <span className="inv-title-icon" style={{ fontSize: '1.4rem' }}>🧾</span>
+              <div>
+                <h3 className="inv-modal-title">
+                  {initialInvoice ? 'Edit Invoice' : 'Create & Issue Invoice'}
+                </h3>
+                <p className="inv-modal-sub">
+                  Official invoice generator matching your standard structure & layout
+                </p>
+              </div>
             </div>
-          </div>
-
-          {/* View Mode Toggle Pill */}
-          <div className="inv-view-toggle">
             <button
               type="button"
-              className={`inv-view-btn ${viewMode === 'form' ? 'active' : ''}`}
-              onClick={() => setViewMode('form')}
-            >
-              ✏️ Form
-            </button>
-            <button
-              type="button"
-              className={`inv-view-btn ${viewMode === 'split' ? 'active' : ''}`}
-              onClick={() => setViewMode('split')}
-            >
-              ◫ Split
-            </button>
-            <button
-              type="button"
-              className={`inv-view-btn ${viewMode === 'preview' ? 'active' : ''}`}
-              onClick={() => setViewMode('preview')}
-            >
-              👁 Preview
-            </button>
-          </div>
-
-          {/* Top Actions */}
-          <div className="inv-modal-actions">
-            <button
-              type="button"
-              className="btn-invoice"
-              onClick={handleDownload}
-              disabled={downloading}
-              title="Download official PDF copy"
-              style={{ fontWeight: 600, padding: '7px 14px' }}
-            >
-              {downloading ? '⏳…' : '⬇ Download PDF'}
-            </button>
-
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={handleSave}
-              disabled={saving}
-              style={{ fontWeight: 700, padding: '7px 16px' }}
-            >
-              {saving ? '⏳ Saving…' : '💾 Save & Issue'}
-            </button>
-
-            <button
-              type="button"
-              className="modal-close"
+              className="modal-close inv-mobile-close"
               onClick={onClose}
               title="Close dialog"
             >
               ✕
             </button>
+          </div>
+
+          <div className="inv-header-controls">
+            {/* View Mode Toggle Pill */}
+            <div className="inv-view-toggle">
+              <button
+                type="button"
+                className={`inv-view-btn ${viewMode === 'form' ? 'active' : ''}`}
+                onClick={() => setViewMode('form')}
+              >
+                ✏️ Form
+              </button>
+              <button
+                type="button"
+                className={`inv-view-btn inv-view-split-btn ${viewMode === 'split' ? 'active' : ''}`}
+                onClick={() => setViewMode('split')}
+              >
+                ◫ Split
+              </button>
+              <button
+                type="button"
+                className={`inv-view-btn ${viewMode === 'preview' ? 'active' : ''}`}
+                onClick={() => setViewMode('preview')}
+              >
+                👁 Preview
+              </button>
+            </div>
+
+            {/* Top Actions */}
+            <div className="inv-modal-actions">
+              <button
+                type="button"
+                className="btn-invoice inv-action-btn"
+                onClick={handleDownload}
+                disabled={downloading}
+                title="Download official PDF copy"
+              >
+                {downloading ? '⏳…' : '⬇ PDF'}
+              </button>
+
+              <button
+                type="button"
+                className="btn-primary inv-action-btn"
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? '⏳ Saving…' : '💾 Save & Issue'}
+              </button>
+
+              <button
+                type="button"
+                className="modal-close inv-desktop-close"
+                onClick={onClose}
+                title="Close dialog"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         </div>
 
@@ -660,16 +687,7 @@ export default function InvoiceGeneratorModal({
                 </div>
 
                 {/* Table Header Labels */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(130px, 1fr) 60px 85px 80px 30px',
-                  gap: '8px',
-                  padding: '0 10px 4px',
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  color: 'var(--text-muted)',
-                  textTransform: 'uppercase'
-                }}>
+                <div className="inv-items-table-header">
                   <span>Description</span>
                   <span style={{ textAlign: 'center' }}>Qty</span>
                   <span style={{ textAlign: 'right' }}>Rate (₹)</span>
@@ -678,48 +696,64 @@ export default function InvoiceGeneratorModal({
                 </div>
 
                 {/* Item Rows */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div className="inv-items-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {items.map((item, idx) => (
                     <div key={item.id || idx} className="inv-item-row-card">
-                      <input
-                        type="text"
-                        className="inv-input"
-                        placeholder="Deliverable description"
-                        value={item.desc}
-                        onChange={(e) => handleItemChange(idx, 'desc', e.target.value)}
-                      />
-                      <input
-                        type="number"
-                        className="inv-input"
-                        placeholder="1"
-                        min="1"
-                        value={item.qty}
-                        onChange={(e) => handleItemChange(idx, 'qty', e.target.value)}
-                        style={{ textAlign: 'center' }}
-                      />
-                      <input
-                        type="number"
-                        className="inv-input"
-                        placeholder="0"
-                        min="0"
-                        value={item.rate}
-                        onChange={(e) => handleItemChange(idx, 'rate', e.target.value)}
-                        style={{ textAlign: 'right' }}
-                      />
-                      <div style={{ fontSize: '0.86rem', fontWeight: 700, textAlign: 'right', color: 'var(--text)' }}>
-                        ₹{((Number(item.qty || 1) * Number(item.rate || 0))).toLocaleString('en-IN')}
+                      <div className="inv-item-desc-cell">
+                        <input
+                          type="text"
+                          className="inv-input"
+                          placeholder="Deliverable description"
+                          value={item.desc}
+                          onChange={(e) => handleItemChange(idx, 'desc', e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className="inv-item-del-btn-mobile"
+                          onClick={() => removeItem(idx)}
+                          title="Remove item"
+                        >
+                          ✕
+                        </button>
                       </div>
+
+                      <div className="inv-item-sub-grid">
+                        <div className="inv-item-cell">
+                          <span className="inv-cell-label">Qty</span>
+                          <input
+                            type="number"
+                            className="inv-input"
+                            placeholder="1"
+                            min="1"
+                            value={item.qty}
+                            onChange={(e) => handleItemChange(idx, 'qty', e.target.value)}
+                            style={{ textAlign: 'center' }}
+                          />
+                        </div>
+                        <div className="inv-item-cell">
+                          <span className="inv-cell-label">Rate (₹)</span>
+                          <input
+                            type="number"
+                            className="inv-input"
+                            placeholder="0"
+                            min="0"
+                            value={item.rate}
+                            onChange={(e) => handleItemChange(idx, 'rate', e.target.value)}
+                            style={{ textAlign: 'right' }}
+                          />
+                        </div>
+                        <div className="inv-item-cell inv-item-total-cell">
+                          <span className="inv-cell-label">Amount</span>
+                          <div className="inv-item-amount-val">
+                            ₹{((Number(item.qty || 1) * Number(item.rate || 0))).toLocaleString('en-IN')}
+                          </div>
+                        </div>
+                      </div>
+
                       <button
                         type="button"
+                        className="inv-item-del-btn-desktop"
                         onClick={() => removeItem(idx)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--text-muted)',
-                          cursor: 'pointer',
-                          fontSize: '1rem',
-                          padding: 0
-                        }}
                         title="Remove row"
                       >
                         ✕
@@ -1029,31 +1063,33 @@ export default function InvoiceGeneratorModal({
                 {/* Works Section Title */}
                 <div className="img1-works-title">Works</div>
 
-                {/* Works Table */}
-                <table className="img1-works-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: '28px', textAlign: 'center' }}>#</th>
-                      <th>Deliverable / Work</th>
-                      <th className="center" style={{ width: '48px' }}>Qty</th>
-                      <th className="right" style={{ width: '85px' }}>Rate</th>
-                      <th className="right" style={{ width: '95px' }}>Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((it, idx) => (
-                      <tr key={it.id || idx}>
-                        <td className="center" style={{ color: '#64748b' }}>{idx + 1}</td>
-                        <td style={{ fontWeight: 600 }}>{it.desc || '—'}</td>
-                        <td className="center">{it.qty}</td>
-                        <td className="right">₹{Number(it.rate || 0).toLocaleString('en-IN')}</td>
-                        <td className="right" style={{ fontWeight: 700 }}>
-                          ₹{(Number(it.qty || 1) * Number(it.rate || 0)).toLocaleString('en-IN')}
-                        </td>
+                {/* Works Table (Wrapped for responsive mobile scroll) */}
+                <div className="img1-table-wrapper">
+                  <table className="img1-works-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '28px', textAlign: 'center' }}>#</th>
+                        <th>Deliverable / Work</th>
+                        <th className="center" style={{ width: '48px' }}>Qty</th>
+                        <th className="right" style={{ width: '85px' }}>Rate</th>
+                        <th className="right" style={{ width: '95px' }}>Amount</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {items.map((it, idx) => (
+                        <tr key={it.id || idx}>
+                          <td className="center" style={{ color: '#64748b' }}>{idx + 1}</td>
+                          <td style={{ fontWeight: 600 }}>{it.desc || '—'}</td>
+                          <td className="center">{it.qty}</td>
+                          <td className="right">₹{Number(it.rate || 0).toLocaleString('en-IN')}</td>
+                          <td className="right" style={{ fontWeight: 700 }}>
+                            ₹{(Number(it.qty || 1) * Number(it.rate || 0)).toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
                 {/* Totals Breakdown */}
                 <div className="img1-summary-box">

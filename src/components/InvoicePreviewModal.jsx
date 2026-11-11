@@ -85,31 +85,34 @@ export default function InvoicePreviewModal({
         
         {/* Top Control Bar */}
         <div className="inv-modal-header">
-          <div className="inv-modal-title-group">
-            <span style={{ fontSize: '1.25rem' }}>🧾</span>
-            <div>
-              <h3 className="inv-modal-title">
-                INVOICE {invoiceNo.startsWith('#') ? invoiceNo : '#' + invoiceNo}
-              </h3>
-              <p className="inv-modal-sub">
-                Issued to {invoice.clientName} · {invoice.issueDate || 'N/A'}
-              </p>
+          <div className="inv-header-main">
+            <div className="inv-modal-title-group">
+              <span className="inv-title-icon" style={{ fontSize: '1.25rem' }}>🧾</span>
+              <div>
+                <h3 className="inv-modal-title">
+                  INVOICE {invoiceNo.startsWith('#') ? invoiceNo : '#' + invoiceNo}
+                </h3>
+                <p className="inv-modal-sub">
+                  Issued to {invoice.clientName} · {invoice.issueDate || 'N/A'}
+                </p>
+              </div>
             </div>
+            <button className="modal-close inv-mobile-close" onClick={onClose} title="Close">✕</button>
           </div>
 
           <div className="inv-modal-actions">
             <button
-              className="btn-invoice"
+              className="btn-invoice inv-action-btn"
               onClick={handleDownload}
               disabled={downloading}
               title="Download official PDF copy"
-              style={{ fontWeight: 600, padding: '7px 14px' }}
+              style={{ fontWeight: 600, padding: '7px 12px' }}
             >
-              {downloading ? '⏳…' : '⬇ Download PDF'}
+              {downloading ? '⏳…' : '⬇ PDF'}
             </button>
 
             <button
-              className="btn-secondary"
+              className="btn-secondary inv-action-btn"
               onClick={handlePrint}
               title="Print Invoice"
               style={{ padding: '7px 12px', fontSize: '0.85rem' }}
@@ -119,7 +122,7 @@ export default function InvoicePreviewModal({
 
             {isAdmin && (
               <button
-                className={`btn-secondary ${isPaid ? 'btn-paid-toggle' : ''}`}
+                className={`btn-secondary inv-action-btn ${isPaid ? 'btn-paid-toggle' : ''}`}
                 onClick={handleToggleStatus}
                 disabled={updating}
                 style={{
@@ -135,7 +138,7 @@ export default function InvoicePreviewModal({
 
             {isAdmin && (
               <button
-                className="btn-delete-row"
+                className="btn-delete-row inv-action-btn"
                 onClick={handleDelete}
                 title="Delete invoice"
                 style={{ padding: '7px 10px' }}
@@ -144,7 +147,7 @@ export default function InvoicePreviewModal({
               </button>
             )}
 
-            <button className="modal-close" onClick={onClose}>✕</button>
+            <button className="modal-close inv-desktop-close" onClick={onClose} title="Close">✕</button>
           </div>
         </div>
 
@@ -199,30 +202,32 @@ export default function InvoicePreviewModal({
             {/* Works Section */}
             <div className="img1-works-title">Works</div>
 
-            <table className="img1-works-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '30px', textAlign: 'center' }}>#</th>
-                  <th>Deliverable / Description</th>
-                  <th className="center" style={{ width: '50px' }}>Qty</th>
-                  <th className="right" style={{ width: '90px' }}>Rate</th>
-                  <th className="right" style={{ width: '100px' }}>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((it, idx) => (
-                  <tr key={idx}>
-                    <td className="center" style={{ color: '#64748b' }}>{idx + 1}</td>
-                    <td style={{ fontWeight: 600 }}>{it.desc || '—'}</td>
-                    <td className="center">{it.qty}</td>
-                    <td className="right">₹{Number(it.rate || it.price || 0).toLocaleString('en-IN')}</td>
-                    <td className="right" style={{ fontWeight: 700 }}>
-                      ₹{((Number(it.qty || 1) * Number(it.rate || it.price || 0))).toLocaleString('en-IN')}
-                    </td>
+            <div className="img1-table-wrapper">
+              <table className="img1-works-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '30px', textAlign: 'center' }}>#</th>
+                    <th>Deliverable / Description</th>
+                    <th className="center" style={{ width: '50px' }}>Qty</th>
+                    <th className="right" style={{ width: '90px' }}>Rate</th>
+                    <th className="right" style={{ width: '100px' }}>Amount</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {items.map((it, idx) => (
+                    <tr key={idx}>
+                      <td className="center" style={{ color: '#64748b' }}>{idx + 1}</td>
+                      <td style={{ fontWeight: 600 }}>{it.desc || '—'}</td>
+                      <td className="center">{it.qty}</td>
+                      <td className="right">₹{Number(it.rate || it.price || 0).toLocaleString('en-IN')}</td>
+                      <td className="right" style={{ fontWeight: 700 }}>
+                        ₹{((Number(it.qty || 1) * Number(it.rate || it.price || 0))).toLocaleString('en-IN')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             {/* Totals Breakdown */}
             <div className="img1-summary-box">
