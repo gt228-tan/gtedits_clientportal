@@ -9,11 +9,23 @@ export default function InvoicePreviewModal({
   onClose,
   onStatusChange,
   onDelete,
+  onSendReminder,
 }) {
   const [downloading, setDownloading] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [sendingReminder, setSendingReminder] = useState(false);
 
   if (!invoice) return null;
+
+  const handleReminderClick = async () => {
+    if (!onSendReminder) return;
+    setSendingReminder(true);
+    try {
+      await onSendReminder(invoice);
+    } finally {
+      setSendingReminder(false);
+    }
+  };
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -65,6 +77,15 @@ export default function InvoicePreviewModal({
   const isPaid = (invoice.status || 'Pending').toLowerCase() === 'paid';
   const items = Array.isArray(invoice.items) ? invoice.items : [];
   const invoiceNo = String(invoice.invoiceNumber || '001');
+
+  // Visibility Flags
+  const hideClientAddress = Boolean(invoice.hideClientAddress);
+  const hideFromAddress   = Boolean(invoice.hideFromAddress);
+  const hideBankDetails   = Boolean(invoice.hideBankDetails);
+  const hideNotes         = Boolean(invoice.hideNotes);
+  const hideSignature     = Boolean(invoice.hideSignature);
+  const hideEmail         = Boolean(invoice.hideEmail);
+  const hideDueDate       = Boolean(invoice.hideDueDate);
 
   // Bank Transaction Details
   const bank = typeof invoice.bankDetails === 'object' && invoice.bankDetails !== null
@@ -120,6 +141,18 @@ export default function InvoicePreviewModal({
               🖨 Print
             </button>
 
+            {isAdmin && onSendReminder && (
+              <button
+                className="btn-secondary inv-action-btn inv-remind-btn"
+                onClick={handleReminderClick}
+                disabled={sendingReminder}
+                title="Send invoice reminder email to client with PDF attachment"
+                style={{ padding: '7px 12px', fontSize: '0.82rem' }}
+              >
+                {sendingReminder ? '⏳ Sending…' : '✉️ Send Reminder'}
+              </button>
+            )}
+
             {isAdmin && (
               <button
                 className={`btn-secondary inv-action-btn ${isPaid ? 'btn-paid-toggle' : ''}`}
@@ -161,12 +194,19 @@ export default function InvoicePreviewModal({
                 <div className="img1-field-line">
                   <strong>Date:</strong> {invoice.issueDate || 'N/A'}
                 </div>
+                {!hideDueDate && invoice.dueDate && (
+                  <div className="img1-field-line">
+                    <strong>Due Date:</strong> {invoice.dueDate}
+                  </div>
+                )}
                 <div className="img1-field-line">
                   <strong>Name:</strong> {invoice.fromName || invoice.brandName || 'GT Edits'}
                 </div>
-                <div className="img1-field-line">
-                  <strong>Address:</strong> {invoice.fromAddress || 'Video Production & Creative Services'}
-                </div>
+                {!hideFromAddress && invoice.fromAddress && (
+                  <div className="img1-field-line">
+                    <strong>Address:</strong> {invoice.fromAddress}
+                  </div>
+                )}
                 <div className="img1-divider"></div>
 
                 {/* To: Section */}
@@ -175,9 +215,11 @@ export default function InvoicePreviewModal({
                   <div className="img1-field-line">
                     <strong>Name:</strong> {invoice.clientName || 'Client'}
                   </div>
-                  <div className="img1-field-line">
-                    <strong>Address:</strong> {invoice.clientAddress || invoice.clientEmail || '—'}
-                  </div>
+                  {!hideClientAddress && (invoice.clientAddress || invoice.clientEmail) && (
+                    <div className="img1-field-line">
+                      <strong>Address:</strong> {invoice.clientAddress || invoice.clientEmail}
+                    </div>
+                  )}
                   <div className="img1-divider"></div>
                 </div>
               </div>
@@ -260,25 +302,29 @@ export default function InvoicePreviewModal({
             </div>
 
             {/* Bank Transaction Details (exact match to specification) */}
-            <div className="img1-bank-title" style={{ fontWeight: 800 }}>Bank Transaction Details :</div>
-            <div className="img1-field-line">
-              <strong>Name:</strong> {bank.name || invoice.fromName || 'GT Edits'}
-            </div>
-            <div className="img1-field-line">
-              <strong>Acc. No:</strong> {bank.accountNo || bank.accNo || '—'}
-            </div>
-            <div className="img1-field-line">
-              <strong>IFSC CODE:</strong> {bank.ifsc || '—'}
-            </div>
-            <div className="img1-field-line">
-              <strong>Bank:</strong> {bank.bank || bank.bankName || '—'}
-            </div>
-            <div className="img1-field-line">
-              <strong>Branch :</strong> {bank.branch || '—'}
-            </div>
-            <div className="img1-divider"></div>
+            {!hideBankDetails && (
+              <>
+                <div className="img1-bank-title" style={{ fontWeight: 800 }}>Bank Transaction Details :</div>
+                <div className="img1-field-line">
+                  <strong>Name:</strong> {bank.name || invoice.fromName || 'GT Edits'}
+                </div>
+                <div className="img1-field-line">
+                  <strong>Acc. No:</strong> {bank.accountNo || bank.accNo || '—'}
+                </div>
+                <div className="img1-field-line">
+                  <strong>IFSC CODE:</strong> {bank.ifsc || '—'}
+                </div>
+                <div className="img1-field-line">
+                  <strong>Bank:</strong> {bank.bank || bank.bankName || '—'}
+                </div>
+                <div className="img1-field-line">
+                  <strong>Branch :</strong> {bank.branch || '—'}
+                </div>
+                <div className="img1-divider"></div>
+              </>
+            )}
 
-            {invoice.notes && (
+            {!hideNotes && invoice.notes && (
               <div style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic', margin: '4px 0 10px' }}>
                 Note: {invoice.notes}
               </div>
@@ -286,27 +332,31 @@ export default function InvoicePreviewModal({
 
             {/* Bottom Footer: Sign and Email */}
             <div className="img1-footer-bar">
-              <div className="img1-sign-box">
-                <span>Sign:</span>
-                {sigImg ? (
-                  <span style={{ display: 'inline-block', verticalAlign: 'bottom', marginLeft: '6px' }}>
-                    <img
-                      src={sigImg}
-                      alt="Signature"
-                      style={{ maxHeight: '38px', maxWidth: '140px', objectFit: 'contain', display: 'block' }}
-                    />
-                  </span>
-                ) : (
-                  <span className="img1-sign-line"></span>
-                )}
-                <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500, marginTop: '2px', marginLeft: '40px' }}>
-                  {invoice.signatoryText || `${invoice.fromName || invoice.brandName || 'GT Edits'} Authorized`}
+              {!hideSignature ? (
+                <div className="img1-sign-box">
+                  <span>Sign:</span>
+                  {sigImg ? (
+                    <span style={{ display: 'inline-block', verticalAlign: 'bottom', marginLeft: '6px' }}>
+                      <img
+                        src={sigImg}
+                        alt="Signature"
+                        style={{ maxHeight: '38px', maxWidth: '140px', objectFit: 'contain', display: 'block' }}
+                      />
+                    </span>
+                  ) : (
+                    <span className="img1-sign-line"></span>
+                  )}
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500, marginTop: '2px', marginLeft: '40px' }}>
+                    {invoice.signatoryText || `${invoice.fromName || invoice.brandName || 'GT Edits'} Authorized`}
+                  </div>
                 </div>
-              </div>
+              ) : <div />}
 
-              <div className="img1-email-box">
-                Email: <span>{invoice.fromEmail || 'contact@gtedits.com'}</span>
-              </div>
+              {!hideEmail && (
+                <div className="img1-email-box">
+                  Email: <span>{invoice.fromEmail || 'contact@gtedits.com'}</span>
+                </div>
+              )}
             </div>
 
           </div>

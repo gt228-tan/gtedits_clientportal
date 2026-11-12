@@ -63,6 +63,15 @@ export default function InvoiceGeneratorModal({
   const [signatoryText, setSignatoryText] = useState(`${BRAND_NAME || 'GT Edits'} Authorized`);
   const [notes, setNotes] = useState('Thank you for your business!');
 
+  // ── Customizable Field Visibility (Single-tick hide options) ──
+  const [hideClientAddress, setHideClientAddress] = useState(false);
+  const [hideFromAddress, setHideFromAddress] = useState(false);
+  const [hideBankDetails, setHideBankDetails] = useState(false);
+  const [hideNotes, setHideNotes] = useState(false);
+  const [hideSignature, setHideSignature] = useState(false);
+  const [hideEmail, setHideEmail] = useState(false);
+  const [hideDueDate, setHideDueDate] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [viewMode, setViewMode] = useState(() => {
@@ -159,6 +168,15 @@ export default function InvoiceGeneratorModal({
       }
       setSignatoryText(initialInvoice.signatoryText || `${initialInvoice.brandName || BRAND_NAME || 'GT Edits'} Authorized`);
       setNotes(initialInvoice.notes || 'Thank you for your business!');
+
+      // Load visibility preferences
+      setHideClientAddress(Boolean(initialInvoice.hideClientAddress));
+      setHideFromAddress(Boolean(initialInvoice.hideFromAddress));
+      setHideBankDetails(Boolean(initialInvoice.hideBankDetails));
+      setHideNotes(Boolean(initialInvoice.hideNotes));
+      setHideSignature(Boolean(initialInvoice.hideSignature));
+      setHideEmail(Boolean(initialInvoice.hideEmail));
+      setHideDueDate(Boolean(initialInvoice.hideDueDate));
     } else {
       const generatedInvNo = generateNextInvoiceNumber(existingInvoices);
       setInvoiceNumber(generatedInvNo);
@@ -167,6 +185,15 @@ export default function InvoiceGeneratorModal({
       d.setDate(d.getDate() + 7);
       setDueDate(d.toISOString().slice(0, 10));
       setStatus('Pending');
+
+      // Reset visibility defaults to false (visible)
+      setHideClientAddress(false);
+      setHideFromAddress(false);
+      setHideBankDetails(false);
+      setHideNotes(false);
+      setHideSignature(false);
+      setHideEmail(false);
+      setHideDueDate(false);
 
       const targetId = initialClientId || Object.keys(clients)[0] || '';
       setSelectedClientId(targetId);
@@ -367,6 +394,15 @@ export default function InvoiceGeneratorModal({
       tax: Number(tax || 0),
       total: grandTotal,
 
+      // Customizable Field Visibility Flags
+      hideClientAddress,
+      hideFromAddress,
+      hideBankDetails,
+      hideNotes,
+      hideSignature,
+      hideEmail,
+      hideDueDate,
+
       // Bank Transaction Details (matching exact user structure)
       bankDetails: {
         name: bankAccountName.trim(),
@@ -391,7 +427,8 @@ export default function InvoiceGeneratorModal({
     initialInvoice, invoiceNumber, selectedClientId, clientName, clientAddress,
     fromName, fromAddress, fromEmail, issueDate, dueDate, status, items, subtotal,
     advance, discount, tax, grandTotal, bankAccountName, accountNo, ifsc, bankName,
-    branch, signatureImage, signatoryText, notes
+    branch, signatureImage, signatoryText, notes,
+    hideClientAddress, hideFromAddress, hideBankDetails, hideNotes, hideSignature, hideEmail, hideDueDate
   ]);
 
   // Download PDF Action
@@ -536,6 +573,106 @@ export default function InvoiceGeneratorModal({
           {(viewMode === 'split' || viewMode === 'form') && (
             <div className="inv-form-pane">
 
+              {/* 0. Quick Field Visibility Customization Bar */}
+              <div className="inv-custom-fields-bar">
+                <div className="inv-custom-fields-header">
+                  <div className="inv-custom-fields-title">
+                    <span>⚙️ Customize Invoice Fields</span>
+                    <span className="inv-custom-fields-hint">Single tick to hide/show fields</span>
+                  </div>
+                  {(hideClientAddress || hideBankDetails || hideFromAddress || hideDueDate || hideNotes || hideSignature || hideEmail) && (
+                    <button
+                      type="button"
+                      className="inv-custom-reset-btn"
+                      onClick={() => {
+                        setHideClientAddress(false);
+                        setHideFromAddress(false);
+                        setHideBankDetails(false);
+                        setHideDueDate(false);
+                        setHideNotes(false);
+                        setHideSignature(false);
+                        setHideEmail(false);
+                      }}
+                      title="Reset all fields to visible"
+                    >
+                      ↺ Show All
+                    </button>
+                  )}
+                </div>
+
+                <div className="inv-custom-pills">
+                  <label className={`inv-toggle-pill ${hideClientAddress ? 'is-hidden' : ''}`} title="Click to hide or show client address">
+                    <input
+                      type="checkbox"
+                      checked={hideClientAddress}
+                      onChange={(e) => setHideClientAddress(e.target.checked)}
+                    />
+                    <span className="inv-pill-box">{hideClientAddress ? '✕' : '✓'}</span>
+                    <span>{hideClientAddress ? 'Client Address Hidden' : 'Hide Client Address'}</span>
+                  </label>
+
+                  <label className={`inv-toggle-pill ${hideBankDetails ? 'is-hidden' : ''}`} title="Click to hide or show bank transaction details">
+                    <input
+                      type="checkbox"
+                      checked={hideBankDetails}
+                      onChange={(e) => setHideBankDetails(e.target.checked)}
+                    />
+                    <span className="inv-pill-box">{hideBankDetails ? '✕' : '✓'}</span>
+                    <span>{hideBankDetails ? 'Bank Details Hidden' : 'Hide Bank Details'}</span>
+                  </label>
+
+                  <label className={`inv-toggle-pill ${hideFromAddress ? 'is-hidden' : ''}`} title="Click to hide or show sender address">
+                    <input
+                      type="checkbox"
+                      checked={hideFromAddress}
+                      onChange={(e) => setHideFromAddress(e.target.checked)}
+                    />
+                    <span className="inv-pill-box">{hideFromAddress ? '✕' : '✓'}</span>
+                    <span>{hideFromAddress ? 'From Address Hidden' : 'Hide From Address'}</span>
+                  </label>
+
+                  <label className={`inv-toggle-pill ${hideDueDate ? 'is-hidden' : ''}`} title="Click to hide or show due date">
+                    <input
+                      type="checkbox"
+                      checked={hideDueDate}
+                      onChange={(e) => setHideDueDate(e.target.checked)}
+                    />
+                    <span className="inv-pill-box">{hideDueDate ? '✕' : '✓'}</span>
+                    <span>{hideDueDate ? 'Due Date Hidden' : 'Hide Due Date'}</span>
+                  </label>
+
+                  <label className={`inv-toggle-pill ${hideNotes ? 'is-hidden' : ''}`} title="Click to hide or show notes & terms">
+                    <input
+                      type="checkbox"
+                      checked={hideNotes}
+                      onChange={(e) => setHideNotes(e.target.checked)}
+                    />
+                    <span className="inv-pill-box">{hideNotes ? '✕' : '✓'}</span>
+                    <span>{hideNotes ? 'Notes Hidden' : 'Hide Notes'}</span>
+                  </label>
+
+                  <label className={`inv-toggle-pill ${hideSignature ? 'is-hidden' : ''}`} title="Click to hide or show signature">
+                    <input
+                      type="checkbox"
+                      checked={hideSignature}
+                      onChange={(e) => setHideSignature(e.target.checked)}
+                    />
+                    <span className="inv-pill-box">{hideSignature ? '✕' : '✓'}</span>
+                    <span>{hideSignature ? 'Signature Hidden' : 'Hide Signature'}</span>
+                  </label>
+
+                  <label className={`inv-toggle-pill ${hideEmail ? 'is-hidden' : ''}`} title="Click to hide or show footer email">
+                    <input
+                      type="checkbox"
+                      checked={hideEmail}
+                      onChange={(e) => setHideEmail(e.target.checked)}
+                    />
+                    <span className="inv-pill-box">{hideEmail ? '✕' : '✓'}</span>
+                    <span>{hideEmail ? 'Email Hidden' : 'Hide Email'}</span>
+                  </label>
+                </div>
+              </div>
+
               {/* 1. Client Picker Section */}
               <div className="inv-card-section">
                 <div className="inv-section-title">
@@ -591,14 +728,29 @@ export default function InvoiceGeneratorModal({
                     />
                   </div>
                   <div>
-                    <label className="inv-label">Client Address / Email</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label className="inv-label" style={{ margin: 0 }}>Client Address / Email</label>
+                      <label className="inv-inline-toggle" title="Single tick to hide or show client address">
+                        <input
+                          type="checkbox"
+                          checked={hideClientAddress}
+                          onChange={(e) => setHideClientAddress(e.target.checked)}
+                        />
+                        <span>Hide address</span>
+                      </label>
+                    </div>
                     <input
                       type="text"
-                      className="inv-input"
+                      className={`inv-input ${hideClientAddress ? 'inv-input-muted' : ''}`}
                       placeholder="e.g. client@example.com"
                       value={clientAddress}
                       onChange={(e) => setClientAddress(e.target.value)}
                     />
+                    {hideClientAddress && (
+                      <div className="inv-field-hidden-note">
+                        👁️ Client address hidden on invoice
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -628,10 +780,20 @@ export default function InvoiceGeneratorModal({
                     />
                   </div>
                   <div>
-                    <label className="inv-label">Due Date</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label className="inv-label" style={{ margin: 0 }}>Due Date</label>
+                      <label className="inv-inline-toggle" title="Hide due date on invoice">
+                        <input
+                          type="checkbox"
+                          checked={hideDueDate}
+                          onChange={(e) => setHideDueDate(e.target.checked)}
+                        />
+                        <span>Hide</span>
+                      </label>
+                    </div>
                     <input
                       type="date"
-                      className="inv-input"
+                      className={`inv-input ${hideDueDate ? 'inv-input-muted' : ''}`}
                       value={dueDate}
                       onChange={(e) => setDueDate(e.target.value)}
                     />
@@ -661,13 +823,28 @@ export default function InvoiceGeneratorModal({
                     />
                   </div>
                   <div>
-                    <label className="inv-label">From Address / Tagline</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label className="inv-label" style={{ margin: 0 }}>From Address / Tagline</label>
+                      <label className="inv-inline-toggle" title="Hide sender address on invoice">
+                        <input
+                          type="checkbox"
+                          checked={hideFromAddress}
+                          onChange={(e) => setHideFromAddress(e.target.checked)}
+                        />
+                        <span>Hide address</span>
+                      </label>
+                    </div>
                     <input
                       type="text"
-                      className="inv-input"
+                      className={`inv-input ${hideFromAddress ? 'inv-input-muted' : ''}`}
                       value={fromAddress}
                       onChange={(e) => setFromAddress(e.target.value)}
                     />
+                    {hideFromAddress && (
+                      <div className="inv-field-hidden-note">
+                        👁️ Sender address hidden on invoice
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -818,17 +995,37 @@ export default function InvoiceGeneratorModal({
               {/* 5. Bank Transaction Details (Exact match to uploaded image) */}
               <div className="inv-card-section">
                 <div className="inv-section-title">
-                  <span>Bank Transaction Details :</span>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'none' }}>
-                    💾 Saved once, stays constant for all invoices
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>Bank Transaction Details :</span>
+                    {hideBankDetails && (
+                      <span className="inv-status-tag-hidden">HIDDEN ON INVOICE</span>
+                    )}
+                  </div>
+                  <label className="inv-inline-toggle" style={{ fontWeight: 700, color: hideBankDetails ? '#ef4444' : 'var(--text)' }} title="Single tick to hide bank details from this invoice">
+                    <input
+                      type="checkbox"
+                      checked={hideBankDetails}
+                      onChange={(e) => setHideBankDetails(e.target.checked)}
+                    />
+                    <span>{hideBankDetails ? '✕ Bank Details Hidden' : 'Hide Bank Details'}</span>
+                  </label>
                 </div>
+
+                {hideBankDetails ? (
+                  <div className="inv-hidden-alert">
+                    <strong>🚫 Bank details are hidden from this invoice.</strong> The recipient will not see your bank account or IFSC on their invoice sheet or downloaded PDF. Your saved details below are kept safe for future invoices.
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500, marginBottom: '8px' }}>
+                    💾 Saved once, stays constant for all invoices
+                  </div>
+                )}
                 
                 <div style={{ marginBottom: '10px' }}>
                   <label className="inv-label">Name:</label>
                   <input
                     type="text"
-                    className="inv-input"
+                    className={`inv-input ${hideBankDetails ? 'inv-input-muted' : ''}`}
                     placeholder="Beneficiary / Account Holder Name"
                     value={bankAccountName}
                     onChange={(e) => setBankAccountName(e.target.value)}
@@ -840,7 +1037,7 @@ export default function InvoiceGeneratorModal({
                     <label className="inv-label">Acc. No:</label>
                     <input
                       type="text"
-                      className="inv-input"
+                      className={`inv-input ${hideBankDetails ? 'inv-input-muted' : ''}`}
                       placeholder="Account Number"
                       value={accountNo}
                       onChange={(e) => setAccountNo(e.target.value)}
@@ -850,7 +1047,7 @@ export default function InvoiceGeneratorModal({
                     <label className="inv-label">IFSC CODE:</label>
                     <input
                       type="text"
-                      className="inv-input"
+                      className={`inv-input ${hideBankDetails ? 'inv-input-muted' : ''}`}
                       placeholder="e.g. SBIN0001234"
                       value={ifsc}
                       onChange={(e) => setIfsc(e.target.value)}
@@ -863,7 +1060,7 @@ export default function InvoiceGeneratorModal({
                     <label className="inv-label">Bank:</label>
                     <input
                       type="text"
-                      className="inv-input"
+                      className={`inv-input ${hideBankDetails ? 'inv-input-muted' : ''}`}
                       placeholder="Bank Name (e.g. State Bank of India)"
                       value={bankName}
                       onChange={(e) => setBankName(e.target.value)}
@@ -873,7 +1070,7 @@ export default function InvoiceGeneratorModal({
                     <label className="inv-label">Branch :</label>
                     <input
                       type="text"
-                      className="inv-input"
+                      className={`inv-input ${hideBankDetails ? 'inv-input-muted' : ''}`}
                       placeholder="Branch Name / Location"
                       value={branch}
                       onChange={(e) => setBranch(e.target.value)}
@@ -885,10 +1082,20 @@ export default function InvoiceGeneratorModal({
               {/* 6. Signature (One-time upload, stays constant in every form) */}
               <div className="inv-card-section">
                 <div className="inv-section-title">
-                  <span>Signature (Upload One Time)</span>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'none' }}>
-                    💾 Persists automatically in every invoice
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>Signature (Upload One Time)</span>
+                    {hideSignature && (
+                      <span className="inv-status-tag-hidden">HIDDEN ON INVOICE</span>
+                    )}
+                  </div>
+                  <label className="inv-inline-toggle" title="Single tick to hide signature from this invoice">
+                    <input
+                      type="checkbox"
+                      checked={hideSignature}
+                      onChange={(e) => setHideSignature(e.target.checked)}
+                    />
+                    <span>{hideSignature ? '✕ Signature Hidden' : 'Hide Signature'}</span>
+                  </label>
                 </div>
 
                 {signatureImage ? (
@@ -984,10 +1191,20 @@ export default function InvoiceGeneratorModal({
                     />
                   </div>
                   <div>
-                    <label className="inv-label">Footer Email</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label className="inv-label" style={{ margin: 0 }}>Footer Email</label>
+                      <label className="inv-inline-toggle" title="Hide footer email on invoice">
+                        <input
+                          type="checkbox"
+                          checked={hideEmail}
+                          onChange={(e) => setHideEmail(e.target.checked)}
+                        />
+                        <span>Hide</span>
+                      </label>
+                    </div>
                     <input
                       type="email"
-                      className="inv-input"
+                      className={`inv-input ${hideEmail ? 'inv-input-muted' : ''}`}
                       value={fromEmail}
                       onChange={(e) => setFromEmail(e.target.value)}
                     />
@@ -995,13 +1212,28 @@ export default function InvoiceGeneratorModal({
                 </div>
 
                 <div style={{ marginTop: '10px' }}>
-                  <label className="inv-label">Notes & Terms</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label className="inv-label" style={{ margin: 0 }}>Notes & Terms</label>
+                    <label className="inv-inline-toggle" title="Hide notes on invoice">
+                      <input
+                        type="checkbox"
+                        checked={hideNotes}
+                        onChange={(e) => setHideNotes(e.target.checked)}
+                      />
+                      <span>Hide Notes</span>
+                    </label>
+                  </div>
                   <textarea
-                    className="inv-textarea"
+                    className={`inv-textarea ${hideNotes ? 'inv-input-muted' : ''}`}
                     rows={2}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                   />
+                  {hideNotes && (
+                    <div className="inv-field-hidden-note">
+                      👁️ Notes will not appear on this invoice
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1021,12 +1253,19 @@ export default function InvoiceGeneratorModal({
                     <div className="img1-field-line">
                       <strong>Date:</strong> {issueDate}
                     </div>
+                    {!hideDueDate && dueDate && (
+                      <div className="img1-field-line">
+                        <strong>Due Date:</strong> {dueDate}
+                      </div>
+                    )}
                     <div className="img1-field-line">
                       <strong>Name:</strong> {fromName}
                     </div>
-                    <div className="img1-field-line">
-                      <strong>Address:</strong> {fromAddress}
-                    </div>
+                    {!hideFromAddress && fromAddress && (
+                      <div className="img1-field-line">
+                        <strong>Address:</strong> {fromAddress}
+                      </div>
+                    )}
                     <div className="img1-divider"></div>
 
                     {/* To Section */}
@@ -1035,9 +1274,11 @@ export default function InvoiceGeneratorModal({
                       <div className="img1-field-line">
                         <strong>Name:</strong> {clientName || 'Client'}
                       </div>
-                      <div className="img1-field-line">
-                        <strong>Address:</strong> {clientAddress || '—'}
-                      </div>
+                      {!hideClientAddress && clientAddress && (
+                        <div className="img1-field-line">
+                          <strong>Address:</strong> {clientAddress || '—'}
+                        </div>
+                      )}
                       <div className="img1-divider"></div>
                     </div>
                   </div>
@@ -1122,25 +1363,29 @@ export default function InvoiceGeneratorModal({
                 </div>
 
                 {/* Bank Transaction Details (matching exact user specification) */}
-                <div className="img1-bank-title" style={{ fontWeight: 800 }}>Bank Transaction Details :</div>
-                <div className="img1-field-line">
-                  <strong>Name:</strong> {bankAccountName}
-                </div>
-                <div className="img1-field-line">
-                  <strong>Acc. No:</strong> {accountNo}
-                </div>
-                <div className="img1-field-line">
-                  <strong>IFSC CODE:</strong> {ifsc}
-                </div>
-                <div className="img1-field-line">
-                  <strong>Bank:</strong> {bankName}
-                </div>
-                <div className="img1-field-line">
-                  <strong>Branch :</strong> {branch}
-                </div>
-                <div className="img1-divider"></div>
+                {!hideBankDetails && (
+                  <>
+                    <div className="img1-bank-title" style={{ fontWeight: 800 }}>Bank Transaction Details :</div>
+                    <div className="img1-field-line">
+                      <strong>Name:</strong> {bankAccountName}
+                    </div>
+                    <div className="img1-field-line">
+                      <strong>Acc. No:</strong> {accountNo}
+                    </div>
+                    <div className="img1-field-line">
+                      <strong>IFSC CODE:</strong> {ifsc}
+                    </div>
+                    <div className="img1-field-line">
+                      <strong>Bank:</strong> {bankName}
+                    </div>
+                    <div className="img1-field-line">
+                      <strong>Branch :</strong> {branch}
+                    </div>
+                    <div className="img1-divider"></div>
+                  </>
+                )}
 
-                {notes && (
+                {!hideNotes && notes && (
                   <div style={{ fontSize: '0.78rem', color: '#64748b', fontStyle: 'italic', margin: '4px 0 10px' }}>
                     Note: {notes}
                   </div>
@@ -1148,27 +1393,31 @@ export default function InvoiceGeneratorModal({
 
                 {/* Bottom Footer: Sign and Email */}
                 <div className="img1-footer-bar">
-                  <div className="img1-sign-box">
-                    <span>Sign:</span>
-                    {signatureImage ? (
-                      <span style={{ display: 'inline-block', verticalAlign: 'bottom', marginLeft: '6px' }}>
-                        <img
-                          src={signatureImage}
-                          alt="Signature"
-                          style={{ maxHeight: '38px', maxWidth: '140px', objectFit: 'contain', display: 'block' }}
-                        />
-                      </span>
-                    ) : (
-                      <span className="img1-sign-line"></span>
-                    )}
-                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500, marginTop: '2px', marginLeft: '40px' }}>
-                      {signatoryText}
+                  {!hideSignature ? (
+                    <div className="img1-sign-box">
+                      <span>Sign:</span>
+                      {signatureImage ? (
+                        <span style={{ display: 'inline-block', verticalAlign: 'bottom', marginLeft: '6px' }}>
+                          <img
+                            src={signatureImage}
+                            alt="Signature"
+                            style={{ maxHeight: '38px', maxWidth: '140px', objectFit: 'contain', display: 'block' }}
+                          />
+                        </span>
+                      ) : (
+                        <span className="img1-sign-line"></span>
+                      )}
+                      <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500, marginTop: '2px', marginLeft: '40px' }}>
+                        {signatoryText}
+                      </div>
                     </div>
-                  </div>
+                  ) : <div />}
 
-                  <div className="img1-email-box">
-                    Email: <span>{fromEmail}</span>
-                  </div>
+                  {!hideEmail && (
+                    <div className="img1-email-box">
+                      Email: <span>{fromEmail}</span>
+                    </div>
+                  )}
                 </div>
 
               </div>

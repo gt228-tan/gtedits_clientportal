@@ -47,8 +47,10 @@ const Rs = formatCurrency;
 /**
  * Generates an invoice PDF exactly matching the Image 1 structure
  * @param {Object} invoice
+ * @param {Object} [options]
+ * @param {boolean} [options.save=true] If false, generates PDF without triggering browser download
  */
-export function generateCustomInvoicePdf(invoice) {
+export function generateCustomInvoicePdf(invoice, options = { save: true }) {
   return new Promise((resolve, reject) => {
     try {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -72,6 +74,15 @@ export function generateCustomInvoicePdf(invoice) {
       const clientAddress = invoice.clientAddress || invoice.clientEmail || 'Client Account';
       const status = (invoice.status || 'Pending').toUpperCase();
       const isPaid = status === 'PAID';
+
+      // Visibility Flags
+      const hideClientAddress = Boolean(invoice.hideClientAddress);
+      const hideFromAddress   = Boolean(invoice.hideFromAddress);
+      const hideBankDetails   = Boolean(invoice.hideBankDetails);
+      const hideNotes         = Boolean(invoice.hideNotes);
+      const hideSignature     = Boolean(invoice.hideSignature);
+      const hideEmail         = Boolean(invoice.hideEmail);
+      const hideDueDate       = Boolean(invoice.hideDueDate);
 
       // Bank Transaction Details (matching exact user structure)
       const bank = typeof invoice.bankDetails === 'object' && invoice.bankDetails !== null
@@ -121,19 +132,29 @@ export function generateCustomInvoicePdf(invoice) {
       doc.setFont('helvetica', 'normal');
       doc.text(` ${issueDate}`, M + 12, curY);
 
+      if (invoice.dueDate && !hideDueDate) {
+        curY += 5.5;
+        doc.setFont('helvetica', 'bold');
+        doc.text('Due Date:', M, curY);
+        doc.setFont('helvetica', 'normal');
+        doc.text(` ${invoice.dueDate}`, M + 18, curY);
+      }
+
       curY += 6;
       doc.setFont('helvetica', 'bold');
       doc.text('Name:', M, curY);
       doc.setFont('helvetica', 'normal');
       doc.text(` ${fromName}`, M + 14, curY);
 
-      curY += 6;
-      doc.setFont('helvetica', 'bold');
-      doc.text('Address:', M, curY);
-      doc.setFont('helvetica', 'normal');
-      const addressLines = doc.splitTextToSize(` ${fromAddress}`, 80);
-      doc.text(addressLines, M + 17, curY);
-      curY += (addressLines.length * 4.8);
+      if (!hideFromAddress && fromAddress) {
+        curY += 6;
+        doc.setFont('helvetica', 'bold');
+        doc.text('Address:', M, curY);
+        doc.setFont('helvetica', 'normal');
+        const addressLines = doc.splitTextToSize(` ${fromAddress}`, 80);
+        doc.text(addressLines, M + 17, curY);
+        curY += (addressLines.length * 4.8);
+      }
 
       // Underline / Divider under From
       curY += 1.5;
@@ -155,13 +176,15 @@ export function generateCustomInvoicePdf(invoice) {
       doc.setFont('helvetica', 'normal');
       doc.text(` ${clientName}`, M + 14, curY);
 
-      curY += 6;
-      doc.setFont('helvetica', 'bold');
-      doc.text('Address:', M, curY);
-      doc.setFont('helvetica', 'normal');
-      const toAddressLines = doc.splitTextToSize(` ${clientAddress}`, 80);
-      doc.text(toAddressLines, M + 17, curY);
-      curY += (toAddressLines.length * 4.8);
+      if (!hideClientAddress && clientAddress) {
+        curY += 6;
+        doc.setFont('helvetica', 'bold');
+        doc.text('Address:', M, curY);
+        doc.setFont('helvetica', 'normal');
+        const toAddressLines = doc.splitTextToSize(` ${clientAddress}`, 80);
+        doc.text(toAddressLines, M + 17, curY);
+        curY += (toAddressLines.length * 4.8);
+      }
 
       // Underline / Divider under To
       curY += 1.5;
@@ -284,65 +307,67 @@ export function generateCustomInvoicePdf(invoice) {
       // ── 5. Bank Transaction Details (Exact layout from user image) ─────
       let bankY = Math.max(afterTableY, sumY + 12);
 
-      // Check if we need space before footer
-      if (bankY > PH - 52) {
-        doc.addPage();
-        bankY = 24;
+      if (!hideBankDetails) {
+        // Check if we need space before footer
+        if (bankY > PH - 52) {
+          doc.addPage();
+          bankY = 24;
+        }
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10.5);
+        doc.setTextColor(...BLACK);
+        doc.text('Bank Transaction Details :', M, bankY);
+
+        bankY += 5.5;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...GREY_DARK);
+        doc.text('Name:', M, bankY);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...BLACK);
+        doc.text(` ${bank.name || bank.accountHolderName || fromName}`, M + 14, bankY);
+
+        bankY += 5;
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...GREY_DARK);
+        doc.text('Acc. No:', M, bankY);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...BLACK);
+        doc.text(` ${bank.accountNo || bank.accNo || ''}`, M + 16, bankY);
+
+        bankY += 5;
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...GREY_DARK);
+        doc.text('IFSC CODE:', M, bankY);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...BLACK);
+        doc.text(` ${bank.ifsc || bank.ifscCode || ''}`, M + 21, bankY);
+
+        bankY += 5;
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...GREY_DARK);
+        doc.text('Bank:', M, bankY);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...BLACK);
+        doc.text(` ${bank.bank || bank.bankName || ''}`, M + 12, bankY);
+
+        bankY += 5;
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...GREY_DARK);
+        doc.text('Branch :', M, bankY);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...BLACK);
+        doc.text(` ${bank.branch || ''}`, M + 16, bankY);
+
+        // Divider under Bank Details (Image 1)
+        bankY += 2;
+        doc.setDrawColor(...BORDER_COL);
+        doc.line(M, bankY, M + 70, bankY);
       }
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10.5);
-      doc.setTextColor(...BLACK);
-      doc.text('Bank Transaction Details :', M, bankY);
-
-      bankY += 5.5;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(...GREY_DARK);
-      doc.text('Name:', M, bankY);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...BLACK);
-      doc.text(` ${bank.name || bank.accountHolderName || fromName}`, M + 14, bankY);
-
-      bankY += 5;
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...GREY_DARK);
-      doc.text('Acc. No:', M, bankY);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...BLACK);
-      doc.text(` ${bank.accountNo || bank.accNo || ''}`, M + 16, bankY);
-
-      bankY += 5;
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...GREY_DARK);
-      doc.text('IFSC CODE:', M, bankY);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...BLACK);
-      doc.text(` ${bank.ifsc || bank.ifscCode || ''}`, M + 21, bankY);
-
-      bankY += 5;
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...GREY_DARK);
-      doc.text('Bank:', M, bankY);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...BLACK);
-      doc.text(` ${bank.bank || bank.bankName || ''}`, M + 12, bankY);
-
-      bankY += 5;
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...GREY_DARK);
-      doc.text('Branch :', M, bankY);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...BLACK);
-      doc.text(` ${bank.branch || ''}`, M + 16, bankY);
-
-      // Divider under Bank Details (Image 1)
-      bankY += 2;
-      doc.setDrawColor(...BORDER_COL);
-      doc.line(M, bankY, M + 70, bankY);
-
-      if (invoice.notes) {
-        bankY += 5;
+      if (!hideNotes && invoice.notes) {
+        bankY += (hideBankDetails ? 0 : 5);
         doc.setFont('helvetica', 'italic');
         doc.setFontSize(8);
         doc.setTextColor(...GREY_DARK);
@@ -358,46 +383,60 @@ export function generateCustomInvoicePdf(invoice) {
       const footerContentY = footerLineY + 11;
 
       // Bottom Left: Sign: _____________________
-      doc.setTextColor(...BLACK);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
-      doc.text('Sign:', M, footerContentY);
+      if (!hideSignature) {
+        doc.setTextColor(...BLACK);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.text('Sign:', M, footerContentY);
 
-      // If user uploaded a signature image, draw it cleanly above/on the sign line
-      const sigImg = invoice.signatureImage || invoice.signature;
-      if (sigImg && typeof sigImg === 'string' && sigImg.startsWith('data:image')) {
-        try {
-          doc.addImage(sigImg, 'PNG', M + 12, footerContentY - 11, 38, 10);
-        } catch (imgErr) {
-          console.warn('Signature image embed failed:', imgErr);
+        // If user uploaded a signature image, draw it cleanly above/on the sign line
+        const sigImg = invoice.signatureImage || invoice.signature;
+        if (sigImg && typeof sigImg === 'string' && sigImg.startsWith('data:image')) {
+          try {
+            doc.addImage(sigImg, 'PNG', M + 12, footerContentY - 11, 38, 10);
+          } catch (imgErr) {
+            console.warn('Signature image embed failed:', imgErr);
+          }
         }
+
+        doc.setLineWidth(0.3);
+        doc.setDrawColor(...BORDER_COL);
+        doc.line(M + 12, footerContentY + 1, M + 65, footerContentY + 1);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...GREY_DARK);
+        doc.text(invoice.signatoryText || `${fromName} Authorized`, M + 12, footerContentY + 5.5);
       }
 
-      doc.setLineWidth(0.3);
-      doc.setDrawColor(...BORDER_COL);
-      doc.line(M + 12, footerContentY + 1, M + 65, footerContentY + 1);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(...GREY_DARK);
-      doc.text(invoice.signatoryText || `${fromName} Authorized`, M + 12, footerContentY + 5.5);
-
       // Bottom Right: Email: [email]
-      doc.setTextColor(...BLACK);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
-      const emailLabel = 'Email:';
-      const emailVal = ` ${fromEmail}`;
-      const fullEmailStr = emailLabel + emailVal;
+      if (!hideEmail && fromEmail) {
+        doc.setTextColor(...BLACK);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        const emailLabel = 'Email:';
+        const emailVal = ` ${fromEmail}`;
+        const fullEmailStr = emailLabel + emailVal;
 
-      doc.text(fullEmailStr, PW - M, footerContentY, { align: 'right' });
+        doc.text(fullEmailStr, PW - M, footerContentY, { align: 'right' });
+      }
 
       // Save PDF
       const sanitizedClient = clientName.replace(/[^a-zA-Z0-9_-]/g, '_');
       const filename = `Invoice_${invoiceNo.replace('#', '')}_${sanitizedClient}.pdf`;
-      doc.save(filename);
+      if (!options || options.save !== false) {
+        doc.save(filename);
+      }
 
-      resolve({ filename });
+      // Generate base64 data URI string for email attachments
+      let pdfBase64 = null;
+      try {
+        pdfBase64 = doc.output('datauristring');
+      } catch (outErr) {
+        console.warn('doc.output datauristring error:', outErr);
+      }
+
+      resolve({ filename, pdfBase64, doc });
     } catch (err) {
       reject(err);
     }

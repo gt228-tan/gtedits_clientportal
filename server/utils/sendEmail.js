@@ -511,6 +511,9 @@ const sendClientPaymentReminderNotification = async ({
   clientEmail,
   clientName,
   project,
+  invoiceNumber,
+  issueDate,
+  dueDate,
   grandTotal = 0,
   pdfBuffer,
 }) => {
@@ -523,26 +526,44 @@ const sendClientPaymentReminderNotification = async ({
     const clientPortalUrl = process.env.CLIENT_URL || 'https://gtedits-clientportal.vercel.app';
     const formattedTotal = `₹${Number(grandTotal).toLocaleString('en-IN')}`;
     const safeClientName = clientName || 'Client';
-    const filename = `Invoice_${safeClientName.replace(/\s+/g, '_')}.pdf`;
+    const cleanInvNo = invoiceNumber ? (String(invoiceNumber).startsWith('#') ? String(invoiceNumber) : '#' + invoiceNumber) : '';
+    const filename = cleanInvNo
+      ? `Invoice_${cleanInvNo.replace(/[^a-zA-Z0-9_-]/g, '')}_${safeClientName.replace(/\s+/g, '_')}.pdf`
+      : `Invoice_${safeClientName.replace(/\s+/g, '_')}.pdf`;
+
+    const titleText = cleanInvNo
+      ? `Payment Reminder: Invoice ${cleanInvNo}`
+      : `Invoice & Balance Notice`;
+
+    const introText = cleanInvNo
+      ? `This is a friendly reminder regarding <strong>Invoice ${cleanInvNo}</strong> for your creative deliverables with GT Edits.`
+      : `This is a friendly update regarding the balance payment for your project with GT Edits.`;
+
+    const dueText = dueDate ? `<p style="margin: 4px 0 0 0; color: #92400e; font-size: 13px;"><strong>Due Date:</strong> ${dueDate}</p>` : '';
+    const issueText = issueDate ? `<p style="margin: 4px 0 0 0; color: #92400e; font-size: 13px;"><strong>Issue Date:</strong> ${issueDate}</p>` : '';
 
     const htmlBody = `
       <div style="text-align: center; padding-bottom: 16px; border-bottom: 2px solid #f59e0b;">
-        <h2 style="color: #d97706; margin: 0; font-size: 20px;">Invoice & Balance Notice</h2>
+        <h2 style="color: #d97706; margin: 0; font-size: 20px;">${titleText}</h2>
       </div>
 
       <div style="margin-top: 20px;">
         <p style="font-size: 15px;">Dear <strong>${safeClientName}</strong>,</p>
         <p style="font-size: 15px; color: #334155;">
-          This is a friendly update regarding the balance payment for your project with GT Edits.
+          ${introText}
         </p>
 
         <div style="background-color: #fffbeb; border: 1px solid #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 6px; margin: 20px 0;">
-          <p style="margin: 0; color: #92400e; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Outstanding Amount</p>
+          <p style="margin: 0; color: #92400e; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+            ${cleanInvNo ? `Invoice ${cleanInvNo} — Total Amount Due` : 'Outstanding Amount'}
+          </p>
           <p style="margin: 6px 0 0 0; color: #78350f; font-size: 22px; font-weight: 700;">${formattedTotal}</p>
+          ${dueText}
+          ${issueText}
         </div>
 
         <p style="font-size: 14px; color: #475569;">
-          We have attached your itemized <strong>Invoice PDF</strong> to this email for your accounting records.
+          We have attached your official itemized <strong>Invoice PDF</strong> to this email for your accounting records.
         </p>
 
         <div style="text-align: center; margin: 26px 0 18px 0;">
@@ -564,10 +585,14 @@ const sendClientPaymentReminderNotification = async ({
     `;
 
     const textBody = `Dear ${safeClientName},\n\n` +
-      `This is a friendly update regarding the balance payment for your project with GT Edits.\n\n` +
-      `Outstanding Amount: ${formattedTotal}\n\n` +
-      `We have attached your itemized Invoice PDF to this email for your reference.\n\n` +
-      `You can review your project details directly in your portal:\n${clientPortalUrl}\n\n` +
+      (cleanInvNo
+        ? `This is a friendly reminder regarding Invoice ${cleanInvNo} for your project with GT Edits.\n`
+        : `This is a friendly update regarding the balance payment for your project with GT Edits.\n`) +
+      `Amount Due: ${formattedTotal}\n` +
+      (dueDate ? `Due Date: ${dueDate}\n` : '') +
+      (issueDate ? `Issue Date: ${issueDate}\n` : '') +
+      `\nWe have attached your itemized Invoice PDF to this email for your reference.\n\n` +
+      `You can review your details directly in your portal:\n${clientPortalUrl}\n\n` +
       `If you have already settled this balance, please disregard this message.\n\n` +
       `Best regards,\nGT Edits Team`;
 
@@ -580,10 +605,14 @@ const sendClientPaymentReminderNotification = async ({
       ]
       : [];
 
+    const subject = cleanInvNo
+      ? `[GT Edits] Payment Reminder: Invoice ${cleanInvNo} (${formattedTotal})`
+      : `[GT Edits] Invoice update for your project: ${formattedTotal}`;
+
     return await sendBrevoEmail({
       to: clientEmail,
       toName: safeClientName,
-      subject: `[GT Edits] Invoice update for your project: ${formattedTotal}`,
+      subject,
       html: htmlBody,
       text: textBody,
       attachments,

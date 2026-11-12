@@ -8144,6 +8144,201 @@ a:hover {
   color: #f3f4f6;
 }
 
+/* ── Invoice Field Customization & Visibility Bar ── */
+.inv-custom-fields-bar {
+  background: var(--bg2, #f1f5f9);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .inv-custom-fields-bar {
+  background: #181b1f;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.inv-custom-fields-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inv-custom-fields-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.inv-custom-fields-hint {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.inv-custom-reset-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inv-custom-reset-btn:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+  color: var(--text);
+  border-color: var(--border-strong, #94a3b8);
+}
+
+.inv-custom-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inv-toggle-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border);
+  color: var(--text);
+  transition: all 0.15s ease;
+}
+
+.inv-toggle-pill input[type="checkbox"] {
+  display: none;
+}
+
+.inv-toggle-pill:hover {
+  border-color: var(--border-strong, #94a3b8);
+  transform: translateY(-1px);
+}
+
+.inv-toggle-pill.is-hidden {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #dc2626;
+  text-decoration: line-through;
+}
+
+[data-theme="dark"] .inv-toggle-pill {
+  background: #23272d;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .inv-toggle-pill.is-hidden {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #f87171;
+}
+
+.inv-pill-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  line-height: 1;
+  background: var(--bg2, #e2e8f0);
+  color: var(--text-muted);
+}
+
+.inv-toggle-pill.is-hidden .inv-pill-box {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.inv-inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.inv-inline-toggle:hover {
+  color: var(--text);
+}
+
+.inv-inline-toggle input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: #ef4444;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+}
+
+.inv-status-tag-hidden {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.14);
+  color: #ef4444;
+  letter-spacing: 0.4px;
+}
+
+.inv-hidden-alert {
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px dashed rgba(239, 68, 68, 0.35);
+  border-radius: 8px;
+  font-size: 0.74rem;
+  color: #dc2626;
+  margin-bottom: 10px;
+}
+
+[data-theme="dark"] .inv-hidden-alert {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.inv-field-hidden-note {
+  font-size: 0.7rem;
+  color: #ef4444;
+  margin-top: 3px;
+  font-weight: 500;
+}
+
+.inv-input-muted {
+  opacity: 0.65;
+  border-style: dashed;
+}
+
 /* ── Invoice Generator & Preview Responsive (Tablet & Mobile) ── */
 @media (max-width: 900px) {
   .inv-modal-wrap {
@@ -8795,6 +8990,32 @@ a:hover {
 [data-theme="dark"] .inv-mark-btn.is-paid {
   color: #4ade80;
   border-color: rgba(74, 222, 128, 0.4);
+}
+
+.inv-remind-btn {
+  color: #d97706 !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+  background: rgba(245, 158, 11, 0.08) !important;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.inv-remind-btn:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.18) !important;
+  border-color: #f59e0b !important;
+  color: #b45309 !important;
+}
+
+[data-theme="dark"] .inv-remind-btn {
+  color: #fbbf24 !important;
+  border-color: rgba(251, 191, 36, 0.35) !important;
+  background: rgba(245, 158, 11, 0.14) !important;
+}
+
+[data-theme="dark"] .inv-remind-btn:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.25) !important;
+  border-color: #fbbf24 !important;
+  color: #fef08a !important;
 }
 
 .btn-del-invoice {

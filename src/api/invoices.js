@@ -1,4 +1,5 @@
 import { db, ref, push, set, update, remove, get } from '../firebase';
+import { API_BASE } from './config';
 
 /**
  * Generates next sequential invoice number like #001 (matching Image 1)
@@ -79,5 +80,29 @@ export async function deleteInvoice(clientId, invoiceId) {
   if (!clientId || !invoiceId) throw new Error('Client ID and Invoice ID are required');
   const invRef = ref(db, `clients/${clientId}/invoices/${invoiceId}`);
   await remove(invRef);
+}
+
+/**
+ * Sends an invoice reminder email to client with attached PDF copy
+ * @param {Object} reminderPayload
+ * @param {string} token
+ * @returns {Promise<Object>}
+ */
+export async function sendInvoiceReminder(reminderPayload, token) {
+  const res = await fetch(`${API_BASE}/invoices/send-reminder`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(reminderPayload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || 'Failed to send invoice reminder email');
+  }
+
+  return res.json();
 }
 

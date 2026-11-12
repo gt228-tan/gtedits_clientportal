@@ -673,6 +673,98 @@ router.all('/clients/:clientId/send-payment-reminder', requireAuth('admin'), asy
   }
 });
 
+// ─────────────────────────────────────────────────────────────
+// POST /api/invoices/send-reminder
+// Admin: send invoice reminder email with PDF attachment for a specific issued invoice
+// ─────────────────────────────────────────────────────────────
+router.post('/invoices/send-reminder', requireAuth('admin'), async (req, res) => {
+  try {
+    const {
+      clientId,
+      invoiceId,
+      invoiceNumber,
+      clientName: rawClientName,
+      clientEmail: directEmail,
+      total,
+      issueDate,
+      dueDate,
+      pdfBase64,
+      invoiceData,
+    } = req.body;
+
+    const authHeader = req.headers['authorization'] || '';
+    const authToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : (req.query?.token || null);
+
+    let clientData = null;
+    if (clientId) {
+      clientData = await readClientFromRTDB(clientId, authToken);
+    }
+
+    const clientName = rawClientName || clientData?.name || clientData?.clientName || 'Client';
+    const clientUid = clientData?.uid || '';
+
+    // Resolve contact email: directEmail > clientData > mongo lookup
+    let clientEmail = directEmail || clientData?.notificationEmail || clientData?.contactEmail || clientData?.email || null;
+    if (!clientEmail || !isRealEmail(clientEmail)) {
+      clientEmail = await getClientContactEmail(clientId, clientUid, clientName, authToken, directEmail);
+    }
+
+    if (!clientEmail || !isRealEmail(clientEmail)) {
+      return res.status(400).json({
+        error: `Client "${clientName}" does not have a valid notification email configured. Please enter a valid notification email.`,
+      });
+    }
+
+    let pdfBuffer = null;
+    if (pdfBase64) {
+      try {
+        pdfBuffer = Buffer.from(pdfBase64.replace(/^data:application\/pdf;base64,/, ''), 'base64');
+      } catch (err) {
+        console.warn('Failed to parse pdfBase64 from payload:', err.message);
+      }
+    }
+
+    const grandTotal = Number(total != null ? total : (invoiceData?.total || 0));
+    const invNum = invoiceNumber || invoiceData?.invoiceNumber || '#001';
+
+    // Fallback: If no client-side PDF was provided, try generating fallback buffer
+    if (!pdfBuffer) {
+      try {
+        pdfBuffer = await generateInvoicePdfBuffer({
+          clientName,
+          work: invoiceData?.items || {},
+          brandName: 'GT Edits',
+        });
+      } catch (genErr) {
+        console.warn('Fallback PDF generation warning:', genErr.message);
+      }
+    }
+
+    const result = await sendClientPaymentReminderNotification({
+      clientEmail,
+      clientName,
+      invoiceNumber: invNum,
+      issueDate: issueDate || invoiceData?.issueDate,
+      dueDate: dueDate || invoiceData?.dueDate,
+      grandTotal,
+      pdfBuffer,
+    });
+
+    if (result && result.success === false) {
+      return res.status(400).json({ error: result.reason || 'Failed to send invoice reminder email.' });
+    }
+
+    res.json({
+      message: `Invoice reminder for ${invNum} sent successfully to ${clientEmail}!`,
+      clientEmail,
+      invoiceNumber: invNum,
+    });
+  } catch (err) {
+    console.error('Error sending invoice reminder:', err);
+    res.status(500).json({ error: err.message || 'Failed to send invoice reminder email' });
+  }
+});
+
 
 
 // ─────────────────────────────────────────────────────────────

@@ -19,7 +19,7 @@ import InvoiceGeneratorModal from '../components/InvoiceGeneratorModal';
 import InvoicePreviewModal from '../components/InvoicePreviewModal';
 import ThemeToggle from '../components/ThemeToggle';
 import { generateCustomInvoicePdf } from '../generateInvoice';
-import { updateInvoiceStatus, deleteInvoice } from '../api/invoices';
+import { updateInvoiceStatus, deleteInvoice, sendInvoiceReminder } from '../api/invoices';
 import { fetchProjects, createProject, deleteProject, updateProject, updateProjectStatus, fetchRevisions, sendClientPaymentReminder } from '../api/projects';
 import { getSectionMetaForSave } from '../utils';
 
@@ -51,6 +51,7 @@ export default function AdminDashboard() {
   const [addBusy, setAddBusy] = useState(false);
   const [syncDriveBusy, setSyncDriveBusy] = useState(false);
   const [sendingReminderId, setSendingReminderId] = useState(null);
+  const [sendingInvoiceReminderId, setSendingInvoiceReminderId] = useState(null);
   const [markingPaidId, setMarkingPaidId] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');  // 'dashboard' | 'clients' | 'projects' | 'requests' | 'invoices'
   const [showOverdueDrawer, setShowOverdueDrawer] = useState(false);
@@ -697,6 +698,88 @@ export default function AdminDashboard() {
       showToast(`❌ Failed to update payment: ${err.message}`, 'warn');
     } finally {
       setMarkingPaidId(null);
+    }
+  };
+
+  const handleSendInvoiceReminder = async (inv) => {
+    if (!inv) return;
+    const invNo = inv.invoiceNumber || '#001';
+    const client = clients[inv.clientId] || {};
+    let email = (inv.clientEmail || inv.clientAddress || client.notificationEmail || client.contactEmail || '').trim();
+
+    // If client does not have a real notification email configured, prompt admin to enter it
+    if (!email || !email.includes('@') || email.includes('gtportal.com')) {
+      const entered = prompt(
+        `Client "${inv.clientName || 'Client'}" does not have a valid notification email configured.\nPlease enter client's email to send the invoice reminder:`,
+        ''
+      );
+      if (!entered || !entered.trim()) {
+        showToast('⚠️ Invoice reminder cancelled (no email provided)', 'warn');
+        return;
+      }
+      email = entered.trim();
+
+      // Automatically save to RTDB
+      try {
+        if (inv.clientId) {
+          await update(ref(db, `clients/${inv.clientId}`), {
+            contactEmail: email,
+            notificationEmail: email,
+          });
+          if (inv.id) {
+            await update(ref(db, `clients/${inv.clientId}/invoices/${inv.id}`), {
+              clientEmail: email,
+            });
+          }
+        }
+        showToast('✉️ Notification email saved!');
+      } catch (err) {
+        console.warn('Could not auto-save email to RTDB:', err);
+      }
+    }
+
+    const totalStr = `₹${Number(inv.total || 0).toLocaleString('en-IN')}`;
+    const isPaid = (inv.status || '').toLowerCase() === 'paid';
+    const confirmPrompt = isPaid
+      ? `Invoice ${invNo} is marked as PAID. Do you still want to send an invoice statement/receipt to ${inv.clientName} (${email})?`
+      : `Send invoice reminder email for ${invNo} (${totalStr}) to ${inv.clientName} (${email})?`;
+
+    if (!confirm(confirmPrompt)) return;
+
+    setSendingInvoiceReminderId(inv.id);
+    try {
+      // 1. Generate customized PDF base64 silently (save: false)
+      let pdfBase64 = null;
+      try {
+        const genRes = await generateCustomInvoicePdf(inv, { save: false });
+        pdfBase64 = genRes?.pdfBase64 || null;
+      } catch (pdfErr) {
+        console.warn('Client-side PDF generation failed, server will generate fallback:', pdfErr);
+      }
+
+      // 2. Obtain auth token
+      const token = await getToken();
+
+      // 3. Send invoice reminder via API
+      const res = await sendInvoiceReminder({
+        clientId: inv.clientId,
+        invoiceId: inv.id,
+        invoiceNumber: invNo,
+        clientName: inv.clientName,
+        clientEmail: email,
+        total: inv.total,
+        issueDate: inv.issueDate,
+        dueDate: inv.dueDate,
+        pdfBase64,
+        invoiceData: inv,
+      }, token);
+
+      showToast(`📧 ${res.message || `Invoice reminder for ${invNo} sent successfully!`}`);
+    } catch (err) {
+      console.error('Send invoice reminder error:', err);
+      showToast(`❌ ${err.message || 'Failed to send invoice reminder'}`, 'warn');
+    } finally {
+      setSendingInvoiceReminderId(null);
     }
   };
 
@@ -2120,6 +2203,15 @@ export default function AdminDashboard() {
                                 </button>
                                 <button
                                   type="button"
+                                  className="btn-secondary inv-remind-btn"
+                                  onClick={() => handleSendInvoiceReminder(inv)}
+                                  disabled={sendingInvoiceReminderId === inv.id}
+                                  title="Send invoice reminder email to client with PDF attachment"
+                                >
+                                  {sendingInvoiceReminderId === inv.id ? '⏳…' : '✉️ Remind'}
+                                </button>
+                                <button
+                                  type="button"
                                   className={`btn-secondary inv-mark-btn ${isPaid ? 'is-paid' : ''}`}
                                   onClick={async () => {
                                     const newStatus = isPaid ? 'Pending' : 'Paid';
@@ -2340,6 +2432,7 @@ export default function AdminDashboard() {
             setPreviewInvoice(prev => prev ? { ...prev, status: newStatus } : null);
           }}
           onDelete={() => setPreviewInvoice(null)}
+          onSendReminder={handleSendInvoiceReminder}
         />
       )}
     </div>
