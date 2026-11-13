@@ -198,9 +198,6 @@ export default function AdminDashboard() {
   const agingModerate = { count: 0, amount: 0 }; // 7-14 days
   const agingOverdue = { count: 0, amount: 0, clients: [] }; // > 14 days
 
-  // Monthly earnings tracking: 'YYYY-MM' => number
-  const monthlyEarningsMap = {};
-
   Object.entries(clients).forEach(([clientId, c]) => {
     let clientOverdueAmt = 0;
     let clientOldestOverdueDays = 0;
@@ -224,15 +221,6 @@ export default function AdminDashboard() {
       } else {
         totalPending += amt;
         purePendingAmt += amt;
-      }
-
-      // Track monthly collections by work item date
-      const collectedPart = isPaid ? amt : isAdvance ? adv : 0;
-      if (collectedPart > 0 && w.date) {
-        const mKey = String(w.date).slice(0, 7);
-        if (mKey.length === 7) {
-          monthlyEarningsMap[mKey] = (monthlyEarningsMap[mKey] || 0) + collectedPart;
-        }
       }
 
       // Unpaid aging analysis
@@ -279,49 +267,6 @@ export default function AdminDashboard() {
 
   // Sort overdue clients descending by overdue amount
   agingOverdue.clients.sort((a, b) => b.overdueAmt - a.overdueAmt);
-
-  // Generate last 6 months list for bar chart
-  const recentMonths = (() => {
-    const list = [];
-    const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = d.toLocaleDateString('en-IN', { month: 'short' });
-      const fullLabel = d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-      list.push({ key, label, fullLabel, total: monthlyEarningsMap[key] || 0 });
-    }
-    return list;
-  })();
-
-  const currentMonthData = recentMonths[recentMonths.length - 1];
-  const prevMonthData = recentMonths[recentMonths.length - 2];
-  const currentMonthRevenue = currentMonthData ? currentMonthData.total : 0;
-  const prevMonthRevenue = prevMonthData ? prevMonthData.total : 0;
-
-  let momGrowth = 0;
-  let momTrend = 'neutral';
-  if (prevMonthRevenue > 0) {
-    momGrowth = Math.round(((currentMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100);
-    momTrend = momGrowth >= 0 ? 'up' : 'down';
-  } else if (currentMonthRevenue > 0) {
-    momGrowth = 100;
-    momTrend = 'up';
-  }
-
-  const maxMonthValue = Math.max(...recentMonths.map(m => m.total), 1);
-
-  // Client & Project Averages
-  const totalClientsCount = Object.keys(clients).length;
-  const arpc = totalClientsCount > 0 ? Math.round(totalEarned / totalClientsCount) : 0;
-
-  const completedProjects = projects.filter(p => p.status === 'completed' && Number(p.amount || p.budget) > 0);
-  const projectsWithAmount = projects.filter(p => Number(p.amount || p.budget) > 0);
-  const avgProjectValue = completedProjects.length > 0
-    ? Math.round(completedProjects.reduce((s, p) => s + Number(p.amount || p.budget || 0), 0) / completedProjects.length)
-    : (projectsWithAmount.length > 0
-        ? Math.round(projectsWithAmount.reduce((s, p) => s + Number(p.amount || p.budget || 0), 0) / projectsWithAmount.length)
-        : 0);
 
   const collectionRate = (totalEarned + totalPending) > 0
     ? Math.round((totalEarned / (totalEarned + totalPending)) * 100)
@@ -1490,201 +1435,57 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* ── Financial Analytics & Monthly Trend Row ── */}
-            <div className="analytics-section-grid">
-              {/* Left Panel: Revenue Collection vs Outstanding Breakdown */}
-              <div className="analytics-panel-card">
-                <div className="analytics-panel-header">
-                  <div>
-                    <h3 className="analytics-panel-title">
-                      <span>💰 Settlement Breakdown</span>
-                    </h3>
-                    <span className="analytics-panel-sub">
-                      Total Billed: ₹{(totalEarned + totalPending).toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                  <span className="action-count-pill pill-blue">
-                    {collectionRate}% Collected
+            {/* ── Unpaid Dues Aging Breakdown ── */}
+            <div className="aging-overview-card">
+              <div className="aging-overview-header">
+                <div>
+                  <h3 className="aging-overview-title">
+                    <span>⏳ Unpaid Dues Aging Breakdown</span>
+                  </h3>
+                  <span className="aging-overview-sub">
+                    Track payment freshness and prevent bad debt
                   </span>
                 </div>
-
-                <div className="collection-bar-wrap">
-                  <div className="collection-bar-meta">
-                    <span>Collection Progress</span>
-                    <span className="collection-rate-val">{collectionRate}% (₹{totalEarned.toLocaleString('en-IN')})</span>
-                  </div>
-                  <div className="collection-progress-track" style={{ height: '12px' }}>
-                    <div className="collection-progress-fill" style={{ width: `${collectionRate}%` }} />
-                  </div>
-                </div>
-
-                <div className="fin-breakdown-pills">
-                  <div className="fin-mini-box">
-                    <span className="fin-mini-label">✅ Paid in Full</span>
-                    <span className="fin-mini-val" style={{ color: 'var(--green)' }}>₹{paidInFullAmt.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="fin-mini-box">
-                    <span className="fin-mini-label">🛡️ Advance in Escrow</span>
-                    <span className="fin-mini-val" style={{ color: '#2563eb' }}>₹{totalAdvanceCollected.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="fin-mini-box">
-                    <span className="fin-mini-label">⏳ Pure Pending Due</span>
-                    <span className="fin-mini-val" style={{ color: '#ea580c' }}>₹{purePendingAmt.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="fin-mini-box">
-                    <span className="fin-mini-label">💳 Advance Remainder</span>
-                    <span className="fin-mini-val" style={{ color: '#d97706' }}>₹{remainingOnAdvance.toLocaleString('en-IN')}</span>
-                  </div>
-                </div>
+                {agingOverdue.clients.length > 0 && (
+                  <button
+                    type="button"
+                    className="action-count-pill pill-red aging-remind-btn"
+                    onClick={() => setShowOverdueDrawer(v => !v)}
+                  >
+                    {showOverdueDrawer ? 'Hide Details' : `Remind (${agingOverdue.clients.length})`}
+                  </button>
+                )}
               </div>
 
-              {/* Right Panel: Monthly Revenue Trend & Bar Chart */}
-              <div className="analytics-panel-card">
-                <div className="analytics-panel-header">
-                  <div>
-                    <h3 className="analytics-panel-title">
-                      <span>📈 Monthly Revenue & Trend</span>
-                    </h3>
-                    <span className="analytics-panel-sub">
-                      This Month: ₹{currentMonthRevenue.toLocaleString('en-IN')} (vs Last Month: ₹{prevMonthRevenue.toLocaleString('en-IN')})
-                    </span>
+              <div className="aging-grid-3">
+                {/* Fresh < 7 days */}
+                <div className="aging-card">
+                  <div className="aging-card-top">
+                    <span className="aging-badge green">🟢 Recent</span>
+                    <span className="aging-days-tag">&lt; 7 Days</span>
                   </div>
-                  <span className={`bento-trend-pill ${momTrend === 'up' ? 'trend-up' : momTrend === 'down' ? 'trend-warning' : 'trend-neutral'}`}>
-                    {momTrend === 'up' ? '▲ +' : momTrend === 'down' ? '▼ ' : ''}{momGrowth}% MoM
-                  </span>
+                  <span className="aging-amount">₹{agingFresh.amount.toLocaleString('en-IN')}</span>
+                  <span className="aging-meta">{agingFresh.count} unpaid work items</span>
                 </div>
 
-                {/* 6-Month Proportional Bar Chart */}
-                <div className="month-chart-wrap">
-                  {recentMonths.map((m, idx) => {
-                    const isCurrent = idx === recentMonths.length - 1;
-                    const heightPercent = maxMonthValue > 0 ? Math.max(12, Math.round((m.total / maxMonthValue) * 100)) : 12;
-                    return (
-                      <div key={m.key} className="month-bar-col" title={`${m.fullLabel}: ₹${m.total.toLocaleString('en-IN')}`}>
-                        <span className="month-bar-value-tip">
-                          {m.total > 0 ? `₹${m.total >= 1000 ? Math.round(m.total / 1000) + 'k' : m.total}` : '₹0'}
-                        </span>
-                        <div
-                          className={`month-bar-pillar ${isCurrent ? 'bar-active' : ''}`}
-                          style={{ height: `${heightPercent}%` }}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="month-labels-row">
-                  {recentMonths.map((m, idx) => {
-                    const isCurrent = idx === recentMonths.length - 1;
-                    return (
-                      <span key={m.key} className={`month-label-item ${isCurrent ? 'current-label' : ''}`}>
-                        {m.label} {isCurrent ? '•' : ''}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* ── Aging Dues & Value Averages Row ── */}
-            <div className="analytics-section-grid">
-              {/* Left Panel: Unpaid Dues Aging Breakdown */}
-              <div className="analytics-panel-card">
-                <div className="analytics-panel-header">
-                  <div>
-                    <h3 className="analytics-panel-title">
-                      <span>⏳ Unpaid Dues Aging Breakdown</span>
-                    </h3>
-                    <span className="analytics-panel-sub">
-                      Track payment freshness and prevent bad debt
-                    </span>
+                {/* Moderate 7-14 days */}
+                <div className="aging-card">
+                  <div className="aging-card-top">
+                    <span className="aging-badge amber">🟡 Follow-up</span>
+                    <span className="aging-days-tag">7–14 Days</span>
                   </div>
-                  {agingOverdue.clients.length > 0 && (
-                    <button
-                      type="button"
-                      className="action-count-pill pill-red"
-                      style={{ border: 'none', cursor: 'pointer' }}
-                      onClick={() => setShowOverdueDrawer(v => !v)}
-                    >
-                      {showOverdueDrawer ? 'Hide Details' : `Remind (${agingOverdue.clients.length})`}
-                    </button>
-                  )}
+                  <span className="aging-amount">₹{agingModerate.amount.toLocaleString('en-IN')}</span>
+                  <span className="aging-meta">{agingModerate.count} unpaid work items</span>
                 </div>
 
-                <div className="aging-grid-3">
-                  {/* Fresh < 7 days */}
-                  <div className="aging-card">
-                    <div className="aging-card-top">
-                      <span className="aging-badge green">🟢 Recent</span>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>&lt; 7 Days</span>
-                    </div>
-                    <span className="aging-amount">₹{agingFresh.amount.toLocaleString('en-IN')}</span>
-                    <span className="aging-meta">{agingFresh.count} unpaid work items</span>
+                {/* Critical Overdue > 14 days */}
+                <div className="aging-card card-overdue">
+                  <div className="aging-card-top">
+                    <span className="aging-badge red">🔴 Overdue</span>
+                    <span className="aging-days-tag days-overdue">&gt; 14 Days</span>
                   </div>
-
-                  {/* Moderate 7-14 days */}
-                  <div className="aging-card">
-                    <div className="aging-card-top">
-                      <span className="aging-badge amber">🟡 Follow-up</span>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>7–14 Days</span>
-                    </div>
-                    <span className="aging-amount">₹{agingModerate.amount.toLocaleString('en-IN')}</span>
-                    <span className="aging-meta">{agingModerate.count} unpaid work items</span>
-                  </div>
-
-                  {/* Critical Overdue > 14 days */}
-                  <div className="aging-card card-overdue">
-                    <div className="aging-card-top">
-                      <span className="aging-badge red">🔴 Overdue</span>
-                      <span style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 700 }}>&gt; 14 Days</span>
-                    </div>
-                    <span className="aging-amount">₹{agingOverdue.amount.toLocaleString('en-IN')}</span>
-                    <span className="aging-meta">{agingOverdue.count} items ({agingOverdue.clients.length} clients)</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Panel: Average Client & Project Value */}
-              <div className="analytics-panel-card">
-                <div className="analytics-panel-header">
-                  <div>
-                    <h3 className="analytics-panel-title">
-                      <span>🎯 Client & Project Value</span>
-                    </h3>
-                    <span className="analytics-panel-sub">
-                      Key monetization and pricing benchmarks
-                    </span>
-                  </div>
-                  <span className="bento-trend-pill trend-neutral">
-                    {clientEntries.length} Profiles
-                  </span>
-                </div>
-
-                <div className="averages-grid">
-                  {/* ARPC Card */}
-                  <div className="avg-metric-card">
-                    <div className="avg-metric-label">
-                      <span>👤</span>
-                      <span>Average Revenue Per Client</span>
-                    </div>
-                    <span className="avg-metric-val">₹{arpc.toLocaleString('en-IN')}</span>
-                    <span className="avg-metric-sub">
-                      Total collected divided by {clientEntries.length} client accounts
-                    </span>
-                  </div>
-
-                  {/* Average Project Value Card */}
-                  <div className="avg-metric-card">
-                    <div className="avg-metric-label">
-                      <span>🎬</span>
-                      <span>Average Project Value</span>
-                    </div>
-                    <span className="avg-metric-val">₹{avgProjectValue.toLocaleString('en-IN')}</span>
-                    <span className="avg-metric-sub">
-                      {completedProjects.length > 0
-                        ? `Across ${completedProjects.length} completed deliverables`
-                        : `Across ${projectsWithAmount.length} budgeted projects`}
-                    </span>
-                  </div>
+                  <span className="aging-amount">₹{agingOverdue.amount.toLocaleString('en-IN')}</span>
+                  <span className="aging-meta">{agingOverdue.count} items ({agingOverdue.clients.length} clients)</span>
                 </div>
               </div>
             </div>

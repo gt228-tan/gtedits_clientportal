@@ -5815,8 +5815,9 @@ a:hover {
     width: 100% !important;
   }
 
-  /* Bento Overview Header */
-  .bento-overview-card {
+  /* Bento Overview & Aging Breakdown Mobile Padding */
+  .bento-overview-card,
+  .aging-overview-card {
     padding: 16px 14px !important;
   }
 
@@ -6197,6 +6198,7 @@ a:hover {
 }
 
 [data-theme="dark"] .bento-overview-card,
+[data-theme="dark"] .aging-overview-card,
 [data-theme="dark"] .bento-stat-card,
 [data-theme="dark"] .admin-section,
 [data-theme="dark"] .clean-client-card {
@@ -6206,13 +6208,16 @@ a:hover {
 }
 
 [data-theme="dark"] .clean-client-card:hover,
+[data-theme="dark"] .aging-card:hover,
 [data-theme="dark"] .bento-stat-card:hover {
   border-color: rgba(34, 197, 94, 0.35);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
 }
 
 [data-theme="dark"] .bento-overview-title,
+[data-theme="dark"] .aging-overview-title,
 [data-theme="dark"] .bento-stat-val,
+[data-theme="dark"] .aging-amount,
 [data-theme="dark"] .clean-name {
   color: #ffffff;
 }
@@ -7219,74 +7224,7 @@ a:hover {
   cursor: not-allowed;
 }
 
-/* ── Financial & Revenue Analytics Section ──────────────────── */
-.analytics-section-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-bottom: 22px;
-}
-
-@media (max-width: 900px) {
-  .analytics-section-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.analytics-panel-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  padding: 24px;
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.analytics-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.analytics-panel-title {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: var(--text);
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  letter-spacing: -0.01em;
-}
-
-.analytics-panel-sub {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-}
-
-/* Progress bar for Collection Rate */
-.collection-bar-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.collection-bar-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-.collection-rate-val {
-  color: var(--green);
-}
-
+/* Progress bar for Collection Rate (used in Bento Financial Overview) */
 .collection-progress-track {
   width: 100%;
   height: 10px;
@@ -7304,121 +7242,73 @@ a:hover {
   transition: width 0.5s ease-out;
 }
 
-.fin-breakdown-pills {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.fin-mini-box {
-  background: var(--bg3);
+/* ── Unpaid Dues Aging Breakdown Section ────────────────────── */
+.aging-overview-card {
+  background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
+  border-radius: var(--radius-xl);
+  padding: 24px 28px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 22px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 20px;
+  transition: background 0.2s, border-color 0.2s;
 }
 
-.fin-mini-label {
-  font-size: 0.74rem;
-  font-weight: 600;
-  color: var(--text-muted);
+.aging-overview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.fin-mini-val {
+.aging-overview-title {
   font-size: 1.15rem;
   font-weight: 800;
   color: var(--text);
-}
-
-/* ── Monthly Revenue Bar Chart ──────────────────────────────── */
-.month-chart-wrap {
+  margin: 0;
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 10px;
-  height: 160px;
-  padding-top: 24px;
-  border-bottom: 1px solid var(--border);
-}
-
-.month-bar-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  height: 100%;
-  justify-content: flex-end;
-  position: relative;
-  cursor: default;
+  gap: 8px;
+  letter-spacing: -0.01em;
 }
 
-.month-bar-value-tip {
-  font-size: 0.7rem;
-  font-weight: 800;
-  color: var(--text);
-  margin-bottom: 6px;
-  white-space: nowrap;
-}
-
-.month-bar-pillar {
-  width: 100%;
-  max-width: 44px;
-  min-height: 8px;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 6px 6px 0 0;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  position: relative;
-}
-
-.month-bar-col:hover .month-bar-pillar {
-  background: rgba(34, 197, 94, 0.4);
-  border-color: var(--accent);
-  transform: scaleY(1.03);
-}
-
-.month-bar-pillar.bar-active {
-  background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
-  border-color: #15803d;
-  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);
-}
-
-[data-theme="dark"] .month-bar-pillar.bar-active {
-  background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
-  border-color: #16a34a;
-}
-
-.month-labels-row {
-  display: flex;
-  justify-content: space-between;
-  padding-top: 10px;
-}
-
-.month-label-item {
-  flex: 1;
-  text-align: center;
-  font-size: 0.75rem;
-  font-weight: 700;
+.aging-overview-sub {
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
-.month-label-item.current-label {
-  color: var(--green);
-  font-weight: 800;
+.aging-remind-btn {
+  border: none;
+  cursor: pointer;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.aging-remind-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.9;
 }
 
 /* ── Aging Dues 3-Column Grid ───────────────────────────────── */
 .aging-grid-3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
+  gap: 16px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 860px) {
   .aging-grid-3 {
     grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .aging-overview-card {
+    padding: 18px 16px;
   }
 }
 
@@ -7426,42 +7316,92 @@ a:hover {
   background: var(--bg3);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 16px;
+  padding: 20px 22px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  transition: transform 0.15s;
+  gap: 12px;
+  box-shadow: var(--shadow-xs);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .aging-card:hover {
   transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
 }
 
 .aging-card-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
 }
 
 .aging-badge {
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   font-weight: 700;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 9999px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.aging-badge.green { background: var(--green-bg); color: var(--green); }
-.aging-badge.amber { background: var(--peach-bg); color: var(--peach); }
-.aging-badge.red { background: #fee2e2; color: #dc2626; }
+.aging-badge.green {
+  background: var(--green-bg);
+  color: var(--green);
+}
 
-[data-theme="dark"] .aging-badge.red { background: rgba(239, 68, 68, 0.25); color: #fca5a5; }
+.aging-badge.amber {
+  background: var(--peach-bg);
+  color: var(--peach);
+}
+
+.aging-badge.red {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+[data-theme="dark"] .aging-badge.red {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+}
+
+.aging-days-tag {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.aging-days-tag.days-overdue {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+[data-theme="dark"] .aging-days-tag.days-overdue {
+  color: #f87171;
+}
 
 .aging-amount {
-  font-size: 1.55rem;
+  font-size: 1.85rem;
   font-weight: 800;
   color: var(--text);
   letter-spacing: -0.02em;
-  line-height: 1.1;
+  line-height: 1.15;
+}
+
+.aging-card.card-overdue {
+  border-color: rgba(220, 38, 38, 0.25);
+}
+
+[data-theme="dark"] .aging-card.card-overdue {
+  border-color: rgba(248, 113, 113, 0.25);
+}
+
+.aging-card.card-overdue:hover {
+  border-color: rgba(220, 38, 38, 0.45);
 }
 
 .aging-card.card-overdue .aging-amount {
@@ -7473,46 +7413,9 @@ a:hover {
 }
 
 .aging-meta {
-  font-size: 0.76rem;
-  color: var(--text-muted);
-}
-
-/* ── Client / Project Average Metric Cards ──────────────────── */
-.averages-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-
-.avg-metric-card {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.avg-metric-label {
   font-size: 0.78rem;
-  font-weight: 600;
   color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.avg-metric-val {
-  font-size: 1.65rem;
-  font-weight: 800;
-  color: var(--text);
-  letter-spacing: -0.02em;
-}
-
-.avg-metric-sub {
-  font-size: 0.72rem;
-  color: var(--text-muted);
+  font-weight: 500;
 }
 
 
