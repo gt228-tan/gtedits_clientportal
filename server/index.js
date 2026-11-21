@@ -38,7 +38,8 @@ app.use('/api/ai-planner',    aiPlanner);     // /api/ai-planner/analyze
 app.use('/api/drive',         driveRoutes);   // /api/drive/create-client-folder, /api/drive/status
 app.use('/api',               deliverables);  // /api/deliverables/..., /api/projects/:id/deliverables/...
 
-// ── Health check ─────────────────────────────────────────────
+// ── Health check & Favicon ──────────────────────────────────
+app.get('/favicon.ico', (_, res) => res.status(204).end());
 app.get('/api', (_, res) => res.json({ status: 'GT Client Portal API running ✅' }));
 app.get('/',    (_, res) => res.json({ status: 'GT Client Portal API running ✅' }));
 
